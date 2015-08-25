@@ -24,6 +24,13 @@ for i, ent in pairs(metaitem) do
   nameToSlots[ent.name] = ent.amount
 end
 
+productivityRecipes = game.forces.player.technologies["mi-meta-productivityRecipes"].effects
+productivityAllowed = {}
+for _, recipe in pairs(productivityRecipes) do
+  productivityAllowed[recipe.recipe] = true
+end
+
+
 function expandPos(pos, range)
   local range = range or 0.5
   if not pos or not pos.x then error("invalid pos",3) end
@@ -88,7 +95,10 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
   if entity.type ~= "rocket-silo" then
 
     -- Check if player has space for proxy item
-    if player.can_insert{name="module-inserter-proxy", count=1} then
+    --/c game.player.print(serpent.dump(game.player.get_inventory(defines.inventory.player_main).can_insert{name="module-inserter-proxy", count=1} or game.player.get_inventory(defines.inventory.player_quickbar).can_insert{name="module-inserter-proxy", count=1}))
+
+    local proxy = {name="module-inserter-proxy", count=1}
+    if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy) then
 
       -- Check if entity is valid and stored in config as a source.
       local index = 0
@@ -103,6 +113,21 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
         return
       end
       local modules = util.table.deepcopy(config[index].to)
+      for i, module in pairs(modules) do
+        if module and module:find("productivity") then
+          if entity.type == "beacon" then
+            player.print("Can't insert "..module.." in "..entity.name)
+            entity.cancel_deconstruction(entity.force)
+            return
+          end
+          if entity.recipe and not productivityAllowed[entity.recipe.name] then
+            player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
+            entity.cancel_deconstruction(entity.force)
+            return
+          end
+        end
+      end
+
       -- proxy entity that the robots fly to
       local new_entity = {
         name = "entity-ghost",
@@ -111,10 +136,11 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
         direction = entity.direction,
         force = entity.force
       }
-
-      entity.surface.create_entity(new_entity)
-      global.entitiesToInsert[entityKey(new_entity)] = {entity = entity, player = player, modules = modules}
-      player.insert{name="module-inserter-proxy", count=1}
+      if not global.entitiesToInsert[entityKey(new_entity)] then
+        entity.surface.create_entity(new_entity)
+        global.entitiesToInsert[entityKey(new_entity)] = {entity = entity, player = player, modules = modules}
+        player.insert{name="module-inserter-proxy", count=1}
+      end
     end
   end
   entity.cancel_deconstruction(entity.force)
@@ -122,14 +148,24 @@ end)
 
 local function initGlob()
 
+  if not global.version or global.version < "0.0.2" then
+    global.config = {}
+    global["config-tmp"] = {}
+    global["storage"] = {}
+    global.entitiesToInsert = {}
+  end
+
   global.entitiesToInsert = global.entitiesToInsert or {}
   --global["entity-recipes"] = global["entity-recipes"] or {}
   global["config"] = global["config"] or {}
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
+
   for _, player in pairs(game.players) do
     gui_init(player, false)
   end
+
+  global.version = "0.0.2"
 end
 
 local function oninit() initGlob() end
@@ -182,14 +218,12 @@ game.on_event(defines.events.on_robot_built_entity, function(event)
             end
           end
         end
-        if modules.total then
-          for k,v in pairs(modules) do
-            if k ~= "total" and v ~= 0 then
-              for i=1,v do
-                if player.get_item_count(k) > 0 then
-                  inventory.insert{name = k, count = 1}
-                  player.remove_item{name = k, count = 1}
-                end
+        if type(modules) == "table" then
+          for i,module in pairs(modules) do
+            if module then
+              if player.get_item_count(module) > 0 and inventory.can_insert{name = module, count = 1} then
+                inventory.insert{name = module, count = 1}
+                player.remove_item{name = module, count = 1}
               end
             end
           end
@@ -202,6 +236,7 @@ end)
 
 game.on_event(defines.events.on_gui_click, function(event)
   local element = event.element
+  --debugDump(element.name, true)
   local player = game.get_player(event.player_index)
 
   if element.name == "module-inserter-config-button" then
@@ -213,18 +248,18 @@ game.on_event(defines.events.on_gui_click, function(event)
   elseif element.name  == "module-inserter-storage-store" then
     gui_store(player)
   else
-    local type, index = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)")
+    event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
+    local type, index, slot = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
+    --debugDump({t=type,i=index,s=slot},true)
     if type and index then
       if type == "from" then
         gui_set_rule(player, type, tonumber(index))
       elseif type == "to" then
-        gui_set_modules(player, tonumber(index))
+        gui_set_modules(player, tonumber(index), tonumber(slot))
       elseif type == "restore" then
         gui_restore(player, tonumber(index))
       elseif type == "remove" then
         gui_remove(player, tonumber(index))
-      elseif type == "clear" then
-        gui_clear_rule(player, tonumber(index))
       end
     end
   end

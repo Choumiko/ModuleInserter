@@ -160,7 +160,7 @@ function gui_open_frame(player)
   local i = 0
   for i = 1, MAX_CONFIG_SIZE do
     if i > #global["config"][player.name] then
-      global["config-tmp"][player.name][i] = { from = "", to = "" }
+      global["config-tmp"][player.name][i] = { from = "", to = {} }
     else
       global["config-tmp"][player.name][i] = {
         from = global["config"][player.name][i].from,
@@ -184,7 +184,7 @@ function gui_open_frame(player)
   error_label.style.minimal_width = 200
   local ruleset_grid = frame.add{
     type = "table",
-    colspan = 4,
+    colspan = 3,
     name = "module-inserter-ruleset-grid"
   }
   ruleset_grid.add{
@@ -194,57 +194,37 @@ function gui_open_frame(player)
   }
   ruleset_grid.add{
     type = "label",
-    caption = "Slots:"
+    caption = "  "
   }
   ruleset_grid.add{
     type = "label",
     name = "module-inserter-grid-header-2",
     caption = {"module-inserter-config-header-2"}
   }
-  ruleset_grid.add{
-    type = "label",
-    name = "module-inserter-grid-header-3",
-    caption = ""
-  }
 
   for i = 1, MAX_CONFIG_SIZE do
+    local style = global["config-tmp"][player.name][i].from or "style"
+    style = style == "" and "style" or style
     ruleset_grid.add{
-      type = "button",
+      type = "checkbox",
       name = "module-inserter-from-" .. i,
-      style = "module-inserter-small-button",
-      caption = get_config_item(player, i, "from")
+      style = "mi-icon-" ..style,
+      state = false
+    --caption = get_config_item(player, i, "from")
     }
     ruleset_grid.add{
       type = "label",
-      name = "module-inserter-slots-" .. i,
-      caption = nameToSlots[global["config-tmp"][player.name][i].from] or "-"
+      caption = "  "
     }
-    local mCaptions = {""}
-    if global["config-tmp"][player.name][i].to ~= "" then
-      for k, v in pairs(global["config-tmp"][player.name][i].to) do
-        if k ~= "total" and v > 0 then
-          table.insert(mCaptions, v)
-          table.insert(mCaptions, "x ")
-          table.insert(mCaptions, game.get_localised_item_name(k))
-          table.insert(mCaptions, " \n")
-        end
-      end
-    end
-    local caption = mCaptions
-    caption = (#mCaptions == 1) and get_config_item(player, i, "to") or caption
-    ruleset_grid.add{
-      type = "button",
-      name = "module-inserter-to-" .. i,
-      style = "module-inserter-small-button",
-      caption = caption
+
+    local slots = ruleset_grid.add{
+      type = "flow",
+      name = "module-inserter-slotflow-" .. i,
+      direction = "horizontal"
     }
-    ruleset_grid.add{
-      type = "button",
-      name = "module-inserter-clear-" .. i,
-      style = "module-inserter-small-button",
-      caption = {"module-inserter-config-button-clear"}
-    }
+    gui_update_modules(player,i)
   end
+
   local button_grid = frame.add{
     type = "table",
     colspan = 2,
@@ -260,6 +240,7 @@ function gui_open_frame(player)
     name = "module-inserter-clear-all",
     caption = {"module-inserter-config-button-clear-all"}
   }
+
   storage_frame = player.gui.left.add{
     type = "frame",
     name = "module-inserter-storage-frame",
@@ -347,8 +328,7 @@ function gui_save_changes(player)
     end
     global["config-tmp"][player.name] = nil
   end
-  saveVar()
-
+  --saveVar(global, "saved")
   local frame = player.gui.left["module-inserter-config-frame"]
   local storage_frame = player.gui.left["module-inserter-storage-frame"]
 
@@ -366,9 +346,9 @@ function gui_clear_all(player)
   if not frame then return end
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
   for i = 1, MAX_CONFIG_SIZE do
-    global["config-tmp"][player.name][i] = { from = "", to = "" }
-    ruleset_grid["module-inserter-from-" .. i].caption = {"module-inserter-item-not-set"}
-    ruleset_grid["module-inserter-to-" .. i].caption = {"module-inserter-item-not-set"}
+    global["config-tmp"][player.name][i] = { from = "", to = {} }
+    ruleset_grid["module-inserter-from-" .. i].style = "mi-icon-style"
+    gui_update_modules(player, i)
   end
 end
 
@@ -386,56 +366,58 @@ function gui_display_message(frame, storage, message)
   error_label.caption = message
 end
 
-function gui_set_rule(player, type, index)
+function gui_set_rule(player, type1, index)
   local frame = player.gui.left["module-inserter-config-frame"]
   if not frame or not global["config-tmp"][player.name] then return end
 
   local stack = player.cursor_stack
   if not stack.valid_for_read then
-    gui_display_message(frame, false, "module-inserter-item-empty")
-    return
+    stack = {type = "empty", name = ""}
+    global["config-tmp"][player.name][index].from = ""
+    --gui_display_message(frame, false, "module-inserter-item-empty")
+    --return
   end
 
-  if stack.name ~= "deconstruction-planner" or type ~= "to" then
+  if type1 ~= "to" then
     local opposite = "from"
     local i = 0
-    if type == "from" then
+    if type1 == "from" then
       opposite = "to"
       for i = 1, #global["config-tmp"][player.name] do
-        if index ~= i and global["config-tmp"][player.name][i].from == stack.name then
+        if stack.type ~= "empty" and index ~= i and global["config-tmp"][player.name][i].from == stack.name then
           gui_display_message(frame, false, "module-inserter-item-already-set")
           return
         end
       end
     end
-    local related = global["config-tmp"][player.name][index][opposite]
-    if related ~= "" then
-      if related == stack.name then
-        gui_display_message(frame, false, "module-inserter-item-is-same")
-        return
-      end
-      --      if get_type(stack.name) ~= get_type(related) then
-      --        gui_display_message(frame, false, "module-inserter-item-not-same-type")
-      --        return
-      --      end
+    if stack.type ~= "empty" and not nameToSlots[stack.name] then
+      gui_display_message(frame, false, "module-inserter-item-no-slots")
+      return
     end
   end
-  global["config-tmp"][player.name][index][type] = stack.name
+  if stack.type == "empty" or stack.name ~= global["config-tmp"][player.name][index][type1] then
+    global["config-tmp"][player.name][index].to = {}
+  end
+  global["config-tmp"][player.name][index][type1] = stack.name
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
-  ruleset_grid["module-inserter-" .. type .. "-" .. index].caption = game.get_localised_item_name(stack.name)
-  if type == "from" then
-    ruleset_grid["module-inserter-slots-" .. index].caption = nameToSlots[global["config-tmp"][player.name][index].from] or "-"
+  local style = global["config-tmp"][player.name][index].from ~= "" and "mi-icon-"..global["config-tmp"][player.name][index].from or "mi-icon-style"
+  ruleset_grid["module-inserter-" .. type1 .. "-" .. index].style = style
+  ruleset_grid["module-inserter-" .. type1 .. "-" .. index].state = false
+  if type1 == "from" then
+    --local slots = nameToSlots[global["config-tmp"][player.name][index].from] or "-"
+    --ruleset_grid["module-inserter-slots-" .. index].caption = slots
+    gui_update_modules(player, index)
   end
 end
 
-function gui_set_modules(player, index)
+function gui_set_modules(player, index, slot)
   local frame = player.gui.left["module-inserter-config-frame"]
   if not frame or not global["config-tmp"][player.name] then return end
 
   local stack = player.cursor_stack
   if not stack.valid_for_read then
-    gui_display_message(frame, false, "module-inserter-item-empty")
-    return
+    --gui_display_message(frame, false, "module-inserter-item-empty")
+    stack = {type = "empty", name = ""}
   end
   if global["config-tmp"][player.name][index].from == "" then
     gui_display_message(frame, false, "module-inserter-item-no-entity")
@@ -447,52 +429,40 @@ function gui_set_modules(player, index)
   local modules = type(config[type1]) == "table" and config[type1] or {}
   local maxSlots = nameToSlots[config.from]
   if stack.type == "module" then
-    modules["deconstruction-planner"] = nil
-    if not modules.total then modules.total = 0 end
-    if not modules[stack.name] then
-      modules[stack.name] = 0
-    end
-    modules[stack.name] = modules[stack.name] + 1
-    modules.total = modules.total + 1
-    if modules[stack.name] > maxSlots or modules.total > maxSlots then
-      modules.total = modules.total - modules[stack.name]
-      modules[stack.name] = nil
-    end
-  elseif stack.name == "deconstruction-planner" then
-    modules = {["deconstruction-planner"]=1}
-    modules.total = false
+    modules[slot] = stack.name
+  elseif stack.type == "empty" then
+    modules[slot] = false
   else
     gui_display_message(frame,false,"module-inserter-item-no-module")
     return
   end
   --debugDump(modules,true)
   global["config-tmp"][player.name][index][type1] = modules
-  local ruleset_grid = frame["module-inserter-ruleset-grid"]
-  local mCaptions = {""}
-  for k, v in pairs(global["config-tmp"][player.name][index][type1]) do
-    if k ~= "total" and v > 0 then
-      table.insert(mCaptions, v)
-      table.insert(mCaptions, "x ")
-      table.insert(mCaptions, game.get_localised_item_name(k))
-      table.insert(mCaptions, " \n")
-    end
-  end
-
-  local caption = mCaptions
-  caption = (modules.total and modules.total <= 0) and get_config_item(player, index, "to") or caption
-  ruleset_grid["module-inserter-" .. type1 .. "-" .. index].caption = caption
+  gui_update_modules(player, index)
 end
 
-function gui_clear_rule(player, index)
+function gui_update_modules(player, index)
   local frame = player.gui.left["module-inserter-config-frame"]
-  if not frame or not global["config-tmp"][player.name] then return end
-
-  gui_display_message(frame, false, "---")
-  local ruleset_grid = frame["module-inserter-ruleset-grid"]
-  global["config-tmp"][player.name][index] = { from = "", to = "" }
-  ruleset_grid["module-inserter-from-" .. index].caption = {"module-inserter-item-not-set"}
-  ruleset_grid["module-inserter-to-" .. index].caption = {"module-inserter-item-not-set"}
-  ruleset_grid["module-inserter-slots-" .. index].caption = "-"
+  local slots = nameToSlots[global["config-tmp"][player.name][index].from] or 1
+  local modules = global["config-tmp"][player.name][index].to
+  local flow = frame["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
+  for i=#flow.children_names,1,-1 do
+    flow[flow.children_names[i]].destroy()
+  end
+  for i=1,slots do
+    local style = modules[i] and "mi-icon-" .. modules[i] or "mi-icon-style"
+    if flow["module-inserter-to-" .. index .. "-" .. i] then
+      flow["module-inserter-to-" .. index .. "-" .. i].style = style
+      flow["module-inserter-to-" .. index .. "-" .. i].state = false
+    else
+      flow.add{
+        type = "checkbox",
+        name = "module-inserter-to-" .. index .. "-" .. i,
+        style = style,
+        state = false
+      }
+    end
+  end
 end
 
 function gui_store(player)
@@ -549,6 +519,7 @@ function gui_store(player)
   }
   gui_display_message(storage_frame, true, "---")
   textfield.text = ""
+  saveVar(global, "stored")
 end
 
 function gui_restore(player, index)
@@ -575,21 +546,10 @@ function gui_restore(player, index)
         to = global["storage"][player.name][name][i].to
       }
     end
-    ruleset_grid["module-inserter-from-" .. i].caption = get_config_item(player, i, "from")
-    local mCaptions = {""}
-    if global["config-tmp"][player.name][i].to ~= "" then
-      for k, v in pairs(global["config-tmp"][player.name][i].to) do
-        if k ~= "total" and v > 0  then
-          table.insert(mCaptions, v)
-          table.insert(mCaptions, "x ")
-          table.insert(mCaptions, game.get_localised_item_name(k))
-          table.insert(mCaptions, " \n")
-        end
-      end
-    end
-    local caption = mCaptions
-    caption = (#mCaptions == 1) and get_config_item(player, index, "to") or caption
-    ruleset_grid["module-inserter-to-" .. i].caption = caption
+    local style = global["config-tmp"][player.name][i].from ~= "" and "mi-icon-"..global["config-tmp"][player.name][i].from or "mi-icon-style"
+    ruleset_grid["module-inserter-from-" .. i].style = style
+    ruleset_grid["module-inserter-from-" .. i].state = false
+    gui_update_modules(player, i)
   end
   gui_display_message(storage_frame, true, "---")
 end
