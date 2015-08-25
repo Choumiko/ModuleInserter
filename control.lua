@@ -120,12 +120,19 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
             entity.cancel_deconstruction(entity.force)
             return
           end
-          if entity.recipe and not productivityAllowed[entity.recipe.name] then
-            player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
-            entity.cancel_deconstruction(entity.force)
-            return
+          if entity.type == "assembling-machine" then
+            if entity.recipe and not productivityAllowed[entity.recipe.name] then
+              player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
+              entity.cancel_deconstruction(entity.force)
+              return
+            end
           end
         end
+      end
+      if entity.type == "assembling-machine" and not entity.recipe then
+        player.print("Can't insert modules in assembler without recipe")
+        entity.cancel_deconstruction(entity.force)
+        return
       end
 
       -- proxy entity that the robots fly to
