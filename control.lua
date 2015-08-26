@@ -99,7 +99,6 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
 
     local proxy = {name="module-inserter-proxy", count=1}
     if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy) then
-
       -- Check if entity is valid and stored in config as a source.
       local index = 0
       for i = 1, #config do
@@ -113,7 +112,15 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
         return
       end
       local modules = util.table.deepcopy(config[index].to)
+      local cTable = {}
       for i, module in pairs(modules) do
+        if module then
+          if not cTable[module] then
+            cTable[module] = 1
+          else
+            cTable[module] = cTable[module] + 1
+          end
+        end
         if module and module:find("productivity") then
           if entity.type == "beacon" then
             player.print("Can't insert "..module.." in "..entity.name)
@@ -134,19 +141,22 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
         entity.cancel_deconstruction(entity.force)
         return
       end
-
-      -- proxy entity that the robots fly to
-      local new_entity = {
-        name = "entity-ghost",
-        inner_name = "module-inserter-proxy",
-        position = entity.position,
-        direction = entity.direction,
-        force = entity.force
-      }
-      if not global.entitiesToInsert[entityKey(new_entity)] then
-        entity.surface.create_entity(new_entity)
-        global.entitiesToInsert[entityKey(new_entity)] = {entity = entity, player = player, modules = modules}
-        player.insert{name="module-inserter-proxy", count=1}
+      local inventory = entity.get_inventory(typeToSlot[entity.type])
+      local contents = inventory.get_contents()
+      if not util.table.compare(cTable,contents) then
+        -- proxy entity that the robots fly to
+        local new_entity = {
+          name = "entity-ghost",
+          inner_name = "module-inserter-proxy",
+          position = entity.position,
+          direction = entity.direction,
+          force = entity.force
+        }
+        if not global.entitiesToInsert[entityKey(new_entity)] then
+          entity.surface.create_entity(new_entity)
+          global.entitiesToInsert[entityKey(new_entity)] = {entity = entity, player = player, modules = modules}
+          player.insert{name="module-inserter-proxy", count=1}
+        end
       end
     end
   end
