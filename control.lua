@@ -170,6 +170,7 @@ local function initGlob()
     global["config-tmp"] = {}
     global["storage"] = {}
     global.entitiesToInsert = {}
+    global.version = "0.0.2"
   end
 
   global.entitiesToInsert = global.entitiesToInsert or {}
@@ -179,10 +180,15 @@ local function initGlob()
   global["storage"] = global["storage"] or {}
 
   for _, player in pairs(game.players) do
+    if global.version < "0.0.5" then
+      if player.gui.top["module-inserter-config-button"] then
+        player.gui.top["module-inserter-config-button"].destroy()
+      end
+      global.version = "0.0.5"
+    end
     gui_init(player, false)
   end
-
-  global.version = "0.0.2"
+  global.version = "0.0.5"
 end
 
 local function oninit() initGlob() end

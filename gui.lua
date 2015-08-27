@@ -131,7 +131,8 @@ function gui_init(player, after_research)
     player.gui.top.add{
       type = "button",
       name = "module-inserter-config-button",
-      caption = {"module-inserter-config-button-caption"}
+      --caption = {"module-inserter-config-button-caption"}
+      style = "module-inserter-button"
     }
   end
 end

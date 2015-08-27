@@ -103,7 +103,6 @@ for r,_ in pairs(tmpTable) do
   table.insert(metaProductivityRecipesR.effects, {type="unlock-recipe", recipe=r})
 end
 
-
 data:extend({metaProductivityRecipesR})
 
 data.raw["gui-style"].default["mi-icon-style"] =
