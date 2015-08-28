@@ -174,21 +174,13 @@ local function initGlob()
   end
 
   global.entitiesToInsert = global.entitiesToInsert or {}
-  --global["entity-recipes"] = global["entity-recipes"] or {}
   global["config"] = global["config"] or {}
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
 
-  for _, player in pairs(game.players) do
-    if global.version < "0.0.5" then
-      if player.gui.top["module-inserter-config-button"] then
-        player.gui.top["module-inserter-config-button"].destroy()
-      end
-      global.version = "0.0.5"
-    end
-    gui_init(player, false)
-  end
-  global.version = "0.0.5"
+  game.on_event(defines.events.on_tick, update_gui)
+
+  global.version = "0.0.6"
 end
 
 local function oninit() initGlob() end
@@ -197,6 +189,21 @@ local function onload()
   initGlob()
 end
 
+function update_gui(event)
+  if global.version < "0.0.6" then
+    for i, player in pairs(game.players) do
+      if player.gui.top["module-inserter-config-button"] then
+        player.gui.top["module-inserter-config-button"].destroy()
+      end
+    end
+    global.version = "0.0.6"
+  end
+  for i, player in pairs(game.players) do
+    gui_init(player)
+  end
+  --debugDump("init",true)
+  game.on_event(defines.events.on_tick, nil)
+end
 
 function count_keys(hashmap)
   local result = 0
@@ -309,6 +316,7 @@ function debugDump(var, force)
     end
   end
 end
+
 function saveVar(var, name)
   local var = var or global
   local n = name or ""
