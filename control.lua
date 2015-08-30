@@ -177,8 +177,7 @@ local function initGlob()
   global["config"] = global["config"] or {}
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
-
-  game.on_event(defines.events.on_tick, update_gui)
+  global.guiVersion = global.guiVersion or {}
 
   global.version = "0.0.6"
 end
@@ -189,20 +188,12 @@ local function onload()
   initGlob()
 end
 
-function update_gui(event)
-  if global.version < "0.0.6" then
-    for i, player in pairs(game.players) do
-      if player.gui.top["module-inserter-config-button"] then
-        player.gui.top["module-inserter-config-button"].destroy()
-      end
-    end
-    global.version = "0.0.6"
+function update_gui(player)
+  if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+    player.gui.top["module-inserter-config-button"].destroy()
+    global.guiVersion[player.name] = "0.0.7"
   end
-  for i, player in pairs(game.players) do
-    gui_init(player)
-  end
-  --debugDump("init",true)
-  game.on_event(defines.events.on_tick, nil)
+  gui_init(player)
 end
 
 function count_keys(hashmap)
@@ -268,6 +259,11 @@ game.on_event(defines.events.on_gui_click, function(event)
   local element = event.element
   --debugDump(element.name, true)
   local player = game.get_player(event.player_index)
+  if not global.guiVersion[player.name] then global.guiVersion[player.name] = "0.0.0" end
+  if global.guiVersion[player.name] < "0.0.7" then
+    update_gui(player)
+    return
+  end
 
   if element.name == "module-inserter-config-button" then
     gui_open_frame(player)
@@ -322,3 +318,10 @@ function saveVar(var, name)
   local n = name or ""
   game.makefile("module"..n..".lua", serpent.block(var, {name="glob"}))
 end
+
+remote.add_interface("mi",
+  {
+    saveVar = function(name)
+      saveVar(global, name)
+    end
+  })
