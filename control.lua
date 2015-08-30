@@ -195,6 +195,11 @@ local function initGlob()
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
   global.guiVersion = global.guiVersion or {}
+  
+  if global.version < "0.0.7" then
+    global["storage"] = {}
+    global.version = "0.0.7"
+  end
 
   global.version = "0.0.6"
 end

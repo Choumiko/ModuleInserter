@@ -487,7 +487,7 @@ function gui_store(player)
   for i = 1, #global["config-tmp"][player.name] do
     global["storage"][player.name][name][i] = {
       from = global["config-tmp"][player.name][i].from,
-      to = global["config-tmp"][player.name][i].to
+      to = util.table.deepcopy(global["config-tmp"][player.name][i].to)
     }
   end
 
@@ -519,7 +519,7 @@ function gui_store(player)
   }
   gui_display_message(storage_frame, true, "---")
   textfield.text = ""
-  saveVar(global, "stored")
+  --saveVar(global, "stored")
 end
 
 function gui_restore(player, index)
