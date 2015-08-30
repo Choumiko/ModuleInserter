@@ -43,6 +43,21 @@ function entityKey(ent)
   end
   return false
 end
+--/c game.player.print(serpent.dump(game.player.surface.find_logistic_network_by_position(game.player.position, game.player.force.name).find_cell_closest_to(game.player.position)))
+function hasPocketBots(player)
+  local armor = player.get_inventory(defines.inventory.player_armor)[1].valid_for_read and player.get_inventory(defines.inventory.player_armor)[1]
+  local modularArmor = (armor and armor.has_grid) and armor.grid or false
+  local port = false
+  if modularArmor then
+    for _, equipment in pairs(grid.equipment) do
+      if equipment.type == "roboport-equipment" then
+        port = true
+        break
+      end
+    end
+  end
+  return port
+end
 
 game.on_event(defines.events.on_marked_for_deconstruction, function(event)
   local entity = event.entity
@@ -98,6 +113,8 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
     --/c game.player.print(serpent.dump(game.player.get_inventory(defines.inventory.player_main).can_insert{name="module-inserter-proxy", count=1} or game.player.get_inventory(defines.inventory.player_quickbar).can_insert{name="module-inserter-proxy", count=1}))
 
     local proxy = {name="module-inserter-proxy", count=1}
+
+
     if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy) then
       -- Check if entity is valid and stored in config as a source.
       local index = 0
@@ -219,7 +236,7 @@ game.on_init(oninit)
 game.on_load(onload)
 
 game.on_event(defines.events.on_robot_built_entity, function(event)
-
+  local status, err = pcall(function()
     local entity = event.created_entity
     if entity.name == "module-inserter-proxy" then
       local origEntity = global.entitiesToInsert[entityKey(entity)]
@@ -240,11 +257,28 @@ game.on_event(defines.events.on_robot_built_entity, function(event)
           end
         end
         if type(modules) == "table" then
+          local logisticsNetwork = origEntity.surface.find_logistic_network_by_position(origEntity.position, origEntity.force.name)
+--          if not logisticsNetwork then
+--            for _, network in pairs(player.force.logistic_networks[origEntity.surface.name]) do
+--              local cell = network.find_cell_closest_to(origEntity.position)
+--              if cell and not cell.mobile and cell.is_in_construction_range(origEntity.position) and cell.logistic_network then
+--                logisticsNetwork = cell.logistic_network
+--              end
+--            end
+--          end
           for i,module in pairs(modules) do
             if module then
-              if player.get_item_count(module) > 0 and inventory.can_insert{name = module, count = 1} then
-                inventory.insert{name = module, count = 1}
-                player.remove_item{name = module, count = 1}
+              if inventory.can_insert{name = module, count = 1} then
+                if player.get_item_count(module) > 0 then
+                  inventory.insert{name = module, count = 1}
+                  player.remove_item{name = module, count = 1}
+                else
+                  --check logisticsnetwork
+                  if logisticsNetwork and logisticsNetwork.get_item_count(module) > 0 then
+                    inventory.insert{name = module, count = 1}
+                    logisticsNetwork.remove_item{name = module, count = 1}
+                  end
+                end
               end
             end
           end
@@ -253,6 +287,10 @@ game.on_event(defines.events.on_robot_built_entity, function(event)
       end
       entity.destroy()
     end
+  end)
+  if not status then
+    debugDump(err, true)
+  end
 end)
 
 game.on_event(defines.events.on_gui_click, function(event)
