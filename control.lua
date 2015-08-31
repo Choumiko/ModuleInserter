@@ -114,20 +114,29 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
 
     local proxy = {name="module-inserter-proxy", count=1}
 
-
-    if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy) then
-      -- Check if entity is valid and stored in config as a source.
-      local index = 0
-      for i = 1, #config do
-        if config[i].from == entity.name then
-          index = i
-          break
-        end
+    --if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy) then
+    -- Check if entity is valid and stored in config as a source.
+    local index = 0
+    for i = 1, #config do
+      if config[i].from == entity.name then
+        index = i
+        break
       end
-      if index == 0 then
-        entity.cancel_deconstruction(entity.force)
-        return
+    end
+    if index == 0 then
+      entity.cancel_deconstruction(entity.force)
+      return
+    end
+    local freeSlots = 0
+    for i=1,#player.get_inventory(defines.inventory.player_quickbar) do
+      if not player.get_inventory(defines.inventory.player_quickbar)[i].valid_for_read then
+        freeSlots = freeSlots + 1
       end
+    end
+    debugDump(freeSlots,true)
+    if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or 
+      (freeSlots > 1 and player.cursor_stack.valid_for_read) or 
+      (freeSlots > 0 and not player.cursor_stack.valid_for_read) then
       local modules = util.table.deepcopy(config[index].to)
       local cTable = {}
       for i, module in pairs(modules) do
@@ -169,9 +178,10 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
           direction = entity.direction,
           force = entity.force
         }
-        if not global.entitiesToInsert[entityKey(new_entity)] then
-          entity.surface.create_entity(new_entity)
-          global.entitiesToInsert[entityKey(new_entity)] = {entity = entity, player = player, modules = modules}
+        local key = entityKey(new_entity)
+        if not global.entitiesToInsert[key] or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
+          local ghost = entity.surface.create_entity(new_entity)
+          global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
           player.insert{name="module-inserter-proxy", count=1}
         end
       end
@@ -195,13 +205,35 @@ local function initGlob()
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
   global.guiVersion = global.guiVersion or {}
-  
+
   if global.version < "0.0.7" then
     global["storage"] = {}
     global.version = "0.0.7"
   end
+  
+  if global.version < "0.0.8" then
+    local toDelete = {}
+    for k, e in pairs(global.entitiesToInsert) do
+      if e.entity.valid then
+        for _, g in pairs(e.entity.surface.find_entities_filtered{area=expandPos(e.position), type="entity-ghost"}) do
+          if g.ghost_name == "module-inserter-proxy" then
+            e.ghost = g
+          end
+        end
+        if not e.ghost then
+          table.insert(toDelete, k)
+        end
+      else
+        table.insert(toDelete, k)
+      end
+    end
+    for _, key in pairs(toDelete) do
+      global.entitiesToInsert[key] = nil
+    end
+    global.version = "0.0.8"
+  end
 
-  global.version = "0.0.6"
+  global.version = "0.0.8"
 end
 
 local function oninit() initGlob() end
@@ -263,14 +295,14 @@ game.on_event(defines.events.on_robot_built_entity, function(event)
         end
         if type(modules) == "table" then
           local logisticsNetwork = origEntity.surface.find_logistic_network_by_position(origEntity.position, origEntity.force.name)
---          if not logisticsNetwork then
---            for _, network in pairs(player.force.logistic_networks[origEntity.surface.name]) do
---              local cell = network.find_cell_closest_to(origEntity.position)
---              if cell and not cell.mobile and cell.is_in_construction_range(origEntity.position) and cell.logistic_network then
---                logisticsNetwork = cell.logistic_network
---              end
---            end
---          end
+          --          if not logisticsNetwork then
+          --            for _, network in pairs(player.force.logistic_networks[origEntity.surface.name]) do
+          --              local cell = network.find_cell_closest_to(origEntity.position)
+          --              if cell and not cell.mobile and cell.is_in_construction_range(origEntity.position) and cell.logistic_network then
+          --                logisticsNetwork = cell.logistic_network
+          --              end
+          --            end
+          --          end
           for i,module in pairs(modules) do
             if module then
               if inventory.can_insert{name = module, count = 1} then
