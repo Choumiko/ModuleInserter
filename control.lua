@@ -45,16 +45,10 @@ function entityKey(ent)
 end
 --/c game.player.print(serpent.dump(game.player.surface.find_logistic_network_by_position(game.player.position, game.player.force.name).find_cell_closest_to(game.player.position)))
 function hasPocketBots(player)
-  local armor = player.get_inventory(defines.inventory.player_armor)[1].valid_for_read and player.get_inventory(defines.inventory.player_armor)[1]
-  local modularArmor = (armor and armor.has_grid) and armor.grid or false
+  local logisticCell = player.character.logistic_cell
   local port = false
-  if modularArmor then
-    for _, equipment in pairs(grid.equipment) do
-      if equipment.type == "roboport-equipment" then
-        port = true
-        break
-      end
-    end
+  if logisticCell and logisticCell.transmitting and logisticCell.mobile then
+    port = logisticCell
   end
   return port
 end
@@ -133,9 +127,9 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
         freeSlots = freeSlots + 1
       end
     end
-    debugDump(freeSlots,true)
-    if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or 
-      (freeSlots > 1 and player.cursor_stack.valid_for_read) or 
+
+    if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or
+      (freeSlots > 1 and player.cursor_stack.valid_for_read) or
       (freeSlots > 0 and not player.cursor_stack.valid_for_read) then
       local modules = util.table.deepcopy(config[index].to)
       local cTable = {}
@@ -210,7 +204,7 @@ local function initGlob()
     global["storage"] = {}
     global.version = "0.0.7"
   end
-  
+
   if global.version < "0.0.8" then
     local toDelete = {}
     for k, e in pairs(global.entitiesToInsert) do
@@ -232,7 +226,6 @@ local function initGlob()
     end
     global.version = "0.0.8"
   end
-
   global.version = "0.0.8"
 end
 
