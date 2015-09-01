@@ -429,6 +429,12 @@ function gui_set_modules(player, index, slot)
   local modules = type(config[type1]) == "table" and config[type1] or {}
   local maxSlots = nameToSlots[config.from]
   if stack.type == "module" then
+    if game.entity_prototypes[config.from].type == "beacon" and game.item_prototypes[stack.name].module_effects and game.item_prototypes[stack.name].module_effects["productivity"] then
+      if game.item_prototypes[stack.name].module_effects["productivity"] ~= 0 then
+        gui_display_message(frame,false,"module-inserter-no-productivity-beacon")
+        return
+      end
+    end
     modules[slot] = stack.name
   elseif stack.type == "empty" then
     modules[slot] = false

@@ -141,17 +141,19 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
             cTable[module] = cTable[module] + 1
           end
         end
-        if module and module:find("productivity") then
-          if entity.type == "beacon" then
-            player.print("Can't insert "..module.." in "..entity.name)
-            entity.cancel_deconstruction(entity.force)
-            return
-          end
-          if entity.type == "assembling-machine" then
-            if entity.recipe and not productivityAllowed[entity.recipe.name] then
-              player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
+        if module and game.item_prototypes[module].module_effects and game.item_prototypes[module].module_effects["productivity"] then
+          if game.item_prototypes[module].module_effects["productivity"] ~= 0 then
+            if entity.type == "beacon" then
+              player.print("Can't insert "..module.." in "..entity.name)
               entity.cancel_deconstruction(entity.force)
               return
+            end
+            if entity.type == "assembling-machine" then
+              if entity.recipe and not productivityAllowed[entity.recipe.name] then
+                player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
+                entity.cancel_deconstruction(entity.force)
+                return
+              end
             end
           end
         end
