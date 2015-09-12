@@ -266,33 +266,38 @@ end
 
 local function oninit()
   initGlob()
-  game.on_event(defines.events.on_tick, update_gui)
+  game.on_event(defines.events.on_tick, function() update_gui() end)
 end
 
 local function onload()
   initGlob()
-  game.on_event(defines.events.on_tick, update_gui)
+  game.on_event(defines.events.on_tick, function() update_gui() end)
 end
 
 function update_gui(player)
-  if player and not player.tick then
-    if global.guiVersion[player.name] and global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
-      player.gui.top["module-inserter-config-button"].destroy()
-      global.guiVersion[player.name] = "0.0.7"
-    end
-    gui_init(player)
-  else
-    for i,player in pairs(game.players) do
-      if player.valid and player.connected then
-        if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
-          player.gui.top["module-inserter-config-button"].destroy()
-          global.guiVersion[player.name] = "0.0.7"
+  local status, err = pcall(function()
+    if player then
+      if global.guiVersion[player.name] and global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+        player.gui.top["module-inserter-config-button"].destroy()
+        global.guiVersion[player.name] = "0.0.7"
+      end
+      gui_init(player)
+    else
+      for i,player in pairs(game.players) do
+        if player.valid and player.connected then
+          if global.guiVersion[player.name] and global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+            player.gui.top["module-inserter-config-button"].destroy()
+            global.guiVersion[player.name] = "0.0.7"
+          end
+          gui_init(player)
         end
-        gui_init(player)
       end
     end
+    game.on_event(defines.events.on_tick, on_tick)
+  end)
+  if not status then
+    debugDump(err, true)
   end
-  game.on_event(defines.events.on_tick, on_tick)
 end
 
 function count_keys(hashmap)
