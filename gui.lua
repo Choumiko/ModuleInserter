@@ -133,6 +133,7 @@ function gui_init(player, after_research)
       name = "module-inserter-config-button",
       style = "module-inserter-button"
     }
+    global.guiVersion[player.name] = "0.0.9"
   end
 end
 

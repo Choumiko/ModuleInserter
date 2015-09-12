@@ -44,6 +44,7 @@ function entityKey(ent)
   end
   return false
 end
+
 --/c game.player.print(serpent.dump(game.player.surface.find_logistic_network_by_position(game.player.position, game.player.force.name).find_cell_closest_to(game.player.position)))
 function hasPocketBots(player)
   local logisticCell = player.character.logistic_cell
@@ -235,30 +236,10 @@ local function initGlob()
     global.version = "0.0.7"
   end
 
-  if global.version < "0.0.8" then
-    local toDelete = {}
-    for k, e in pairs(global.entitiesToInsert) do
-      if e.entity.valid then
-        for _, g in pairs(e.entity.surface.find_entities_filtered{area=expandPos(e.position), type="entity-ghost"}) do
-          if g.ghost_name == "module-inserter-proxy" then
-            e.ghost = g
-          end
-        end
-        if not e.ghost then
-          table.insert(toDelete, k)
-        end
-      else
-        table.insert(toDelete, k)
-      end
-    end
-    for _, key in pairs(toDelete) do
-      global.entitiesToInsert[key] = nil
-    end
-    global.version = "0.0.8"
-  end
   if global.version < "0.0.9" then
     global.entitiesToInsert = {}
     global.removeTicks = {}
+    global.guiVersion = {}
     global.version = "0.0.9"
   end
   global.version = "0.0.9"
@@ -277,7 +258,10 @@ end
 function update_gui(player)
   local status, err = pcall(function()
     if player then
-      if global.guiVersion[player.name] and global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+      if not global.guiVersion[player.name] then
+        global.guiVersion[player.name] = "0.0.0"
+      end
+      if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
         player.gui.top["module-inserter-config-button"].destroy()
         global.guiVersion[player.name] = "0.0.7"
       end
@@ -285,7 +269,10 @@ function update_gui(player)
     else
       for i,player in pairs(game.players) do
         if player.valid and player.connected then
-          if global.guiVersion[player.name] and global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+          if not global.guiVersion[player.name] then
+            global.guiVersion[player.name] = "0.0.0"
+          end
+          if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
             player.gui.top["module-inserter-config-button"].destroy()
             global.guiVersion[player.name] = "0.0.7"
           end
@@ -324,13 +311,18 @@ game.on_load(onload)
 
 function on_tick(event)
   if global.removeTicks[event.tick] then
-    for _, g in pairs(global.removeTicks[event.tick]) do
-      if not g.g.valid and g.p.get_item_count("module-inserter-proxy") > 0 then
-        g.p.remove_item{name="module-inserter-proxy", count = 1}
-        global.entitiesToInsert[g.key] = nil
+    local status, err = pcall(function()
+      for _, g in pairs(global.removeTicks[event.tick]) do
+        if not g.g.valid and g.p.get_item_count("module-inserter-proxy") > 0 then
+          g.p.remove_item{name="module-inserter-proxy", count = 1}
+          global.entitiesToInsert[g.key] = nil
+        end
       end
+      global.removeTicks[event.tick] = nil
+    end)
+    if not status then
+      debugDump(err, true)
     end
-    global.removeTicks[event.tick] = nil
   end
 end
 
@@ -382,7 +374,8 @@ game.on_event(defines.events.on_robot_built_entity, function(event)
             end
           end
         end
-        global.entitiesToInsert[entityKey(entity)] = nil
+        local key = entityKey(entity)
+        global.entitiesToInsert[key] = nil
       end
       entity.destroy()
     end
