@@ -227,7 +227,7 @@ function gui_open_frame(player)
 
   local button_grid = frame.add{
     type = "table",
-    colspan = 2,
+    colspan = 3,
     name = "module-inserter-button-grid"
   }
   button_grid.add{
@@ -239,6 +239,12 @@ function gui_open_frame(player)
     type = "button",
     name = "module-inserter-clear-all",
     caption = {"module-inserter-config-button-clear-all"}
+  }
+  
+  button_grid.add{
+    type="button",
+    name = "module-inserter-debug",
+    caption = "D"
   }
 
   storage_frame = player.gui.left.add{

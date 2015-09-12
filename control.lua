@@ -175,7 +175,13 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
           force = entity.force
         }
         local key = entityKey(new_entity)
-        if not global.entitiesToInsert[key] or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
+        if global.entitiesToInsert[key] then
+          global.entitiesToInsert[key] = nil
+          if player.get_item_count("module-inserter-proxy") > 0 then
+            player.remove_item(proxy)
+          end
+        end
+        if not global.entitiesToInsert[key] then -- or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
           local ghost = entity.surface.create_entity(new_entity)
           global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
           player.insert{name="module-inserter-proxy", count=1}
@@ -341,6 +347,13 @@ game.on_event(defines.events.on_gui_click, function(event)
     gui_save_changes(player)
   elseif element.name == "module-inserter-clear-all" then
     gui_clear_all(player)
+  elseif element.name == "module-inserter-debug" then
+    saveVar(global,"debugButton")
+    local c = 0
+    for _,k in pairs(global.entitiesToInsert) do
+      c = c+1
+    end
+    debugDump("# "..c,true)
   elseif element.name  == "module-inserter-storage-store" then
     gui_store(player)
   else
@@ -363,7 +376,7 @@ end)
 
 game.on_event(defines.events.on_research_finished, function(event)
   if event.research.name == 'automated-construction' then
-    for _, player in pairs(game.players) do
+    for _, player in pairs(event.research.force.players) do
       gui_init(player, true)
     end
   end
