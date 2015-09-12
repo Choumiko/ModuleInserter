@@ -240,12 +240,13 @@ function gui_open_frame(player)
     name = "module-inserter-clear-all",
     caption = {"module-inserter-config-button-clear-all"}
   }
-  
-  button_grid.add{
-    type="button",
-    name = "module-inserter-debug",
-    caption = "D"
-  }
+  if DEBUG then
+    button_grid.add{
+      type="button",
+      name = "module-inserter-debug",
+      caption = "D"
+    }
+  end
 
   storage_frame = player.gui.left.add{
     type = "frame",

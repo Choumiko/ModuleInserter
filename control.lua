@@ -3,6 +3,7 @@ require "util"
 
 MAX_CONFIG_SIZE = 6
 MAX_STORAGE_SIZE = 12
+DEBUG = false
 
 require "gui"
 
@@ -180,10 +181,29 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
           if player.get_item_count("module-inserter-proxy") > 0 then
             player.remove_item(proxy)
           end
+          local toDelete = false
+          for tick, t in pairs(global.removeTicks) do
+            for k, g in pairs(t) do
+              if g.key == key then
+                toDelete = {t=tick, k=k}
+                break
+              end
+            end
+            if toDelete then
+              break
+            end
+          end
+          if toDelete then
+            global.removeTicks[toDelete.t][toDelete.k] = nil
+          end
         end
         if not global.entitiesToInsert[key] then -- or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
           local ghost = entity.surface.create_entity(new_entity)
           global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
+          --ghost.time_to_live = 60*30
+          local delTick = game.tick + ghost.time_to_live + 2
+          global.removeTicks[delTick] = global.removeTicks[delTick] or {}
+          table.insert(global.removeTicks[delTick], {p=player,g=ghost, key = key})
           player.insert{name="module-inserter-proxy", count=1}
         end
       end
@@ -199,10 +219,12 @@ local function initGlob()
     global["config-tmp"] = {}
     global["storage"] = {}
     global.entitiesToInsert = {}
+    global.removeTicks = {}
     global.version = "0.0.2"
   end
 
   global.entitiesToInsert = global.entitiesToInsert or {}
+  global.removeTicks = global.removeTicks or {}
   global["config"] = global["config"] or {}
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
@@ -234,21 +256,43 @@ local function initGlob()
     end
     global.version = "0.0.8"
   end
-  global.version = "0.0.8"
+  if global.version < "0.0.9" then
+    global.entitiesToInsert = {}
+    global.removeTicks = {}
+    global.version = "0.0.9"
+  end
+  global.version = "0.0.9"
 end
 
-local function oninit() initGlob() end
+local function oninit()
+  initGlob()
+  game.on_event(defines.events.on_tick, update_gui)
+end
 
 local function onload()
   initGlob()
+  game.on_event(defines.events.on_tick, update_gui)
 end
 
 function update_gui(player)
-  if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
-    player.gui.top["module-inserter-config-button"].destroy()
-    global.guiVersion[player.name] = "0.0.7"
+  if player and not player.tick then
+    if global.guiVersion[player.name] and global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+      player.gui.top["module-inserter-config-button"].destroy()
+      global.guiVersion[player.name] = "0.0.7"
+    end
+    gui_init(player)
+  else
+    for i,player in pairs(game.players) do
+      if player.valid and player.connected then
+        if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+          player.gui.top["module-inserter-config-button"].destroy()
+          global.guiVersion[player.name] = "0.0.7"
+        end
+        gui_init(player)
+      end
+    end
   end
-  gui_init(player)
+  game.on_event(defines.events.on_tick, on_tick)
 end
 
 function count_keys(hashmap)
@@ -272,6 +316,18 @@ end
 
 game.on_init(oninit)
 game.on_load(onload)
+
+function on_tick(event)
+  if global.removeTicks[event.tick] then
+    for _, g in pairs(global.removeTicks[event.tick]) do
+      if not g.g.valid and g.p.get_item_count("module-inserter-proxy") > 0 then
+        g.p.remove_item{name="module-inserter-proxy", count = 1}
+        global.entitiesToInsert[g.key] = nil
+      end
+    end
+    global.removeTicks[event.tick] = nil
+  end
+end
 
 game.on_event(defines.events.on_robot_built_entity, function(event)
   local status, err = pcall(function()
@@ -353,7 +409,12 @@ game.on_event(defines.events.on_gui_click, function(event)
     for _,k in pairs(global.entitiesToInsert) do
       c = c+1
     end
-    debugDump("# "..c,true)
+    debugDump("#Entities "..c,true)
+    c = 0
+    for _,k in pairs(global.removeTicks) do
+      c = c+#k
+    end
+    debugDump("#Remove "..c,true)
   elseif element.name  == "module-inserter-storage-store" then
     gui_store(player)
   else
