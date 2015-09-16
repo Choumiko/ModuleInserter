@@ -31,6 +31,10 @@ for _, recipe in pairs(productivityRecipes) do
   productivityAllowed[recipe.recipe] = true
 end
 
+function subPos(p1,p2)
+  local p2 = p2 or {x=0,y=0}
+  return {x=p1.x-p2.x, y=p1.y-p2.y}
+end
 
 function expandPos(pos, range)
   local range = range or 0.5
@@ -56,161 +60,170 @@ function hasPocketBots(player)
 end
 
 game.on_event(defines.events.on_marked_for_deconstruction, function(event)
-  local entity = event.entity
-  local deconstruction = false
-  local upgrade = false
-  local module = false
-  local player = nil
-  -- Determine which player used upgrade planner.
-  -- If more than one player has upgrade planner in their hand or one
-  -- player has a upgrade planner and other has deconstruction planner,
-  -- we can't determine it, so we have to discard deconstruction order.
-  for i = 1, #game.players do
-    if game.players[i].cursor_stack.valid_for_read then
-      if game.players[i].cursor_stack.name == "upgrade-planner" then
-        if upgrade or deconstruction or module then
-          --debugDump("Upgrade planner used", true)
-          return
+  local status, err = pcall(function()
+    local entity = event.entity
+    local deconstruction = false
+    local upgrade = false
+    local module = false
+    local player = nil
+    -- Determine which player used upgrade planner.
+    -- If more than one player has upgrade planner in their hand or one
+    -- player has a upgrade planner and other has deconstruction planner,
+    -- we can't determine it, so we have to discard deconstruction order.
+    for _, p in pairs(game.players) do
+      local stack = p.cursor_stack
+      if stack.valid_for_read then
+        if stack.name == "upgrade-planner" then
+          if upgrade or deconstruction or module then
+            --debugDump("Upgrade planner used", true)
+            return
+          end
+          upgrade = true
+        elseif stack.name == "deconstruction-planner" then
+          if upgrade or module then
+            --debugDump("Deconstruction/Module planner used", true)
+            return
+          end
+          deconstruction = true
+        elseif stack.name == "module-inserter" then
+          if upgrade or deconstruction then
+            --debugDump("Deconstruction/Upgrade planner used", true)
+            return
+          end
+          player = p
+          module = true
         end
-        upgrade = true
-      elseif game.players[i].cursor_stack.name == "deconstruction-planner" then
-        if upgrade or module then
-          --debugDump("Deconstruction/Module planner used", true)
-          return
-        end
-        deconstruction = true
-      elseif game.players[i].cursor_stack.name == "module-inserter" then
-        if upgrade or deconstruction then
-          --debugDump("Deconstruction/Upgrade planner used", true)
-          return
-        end
-        player = game.players[i]
-        module = true
       end
     end
-  end
 
-  if not player then return end
+    if not player then return end
 
-  if not global["config"][player.name] then
+    if not global["config"][player.name] then
 
-    -- Config for this player does not exist yet, so we have nothing to do.
-    -- We can create it now for later usage.
-    global["config"][player.name] = {}
-    entity.cancel_deconstruction(entity.force)
-    return
-  end
-
-  local config = global["config"][player.name]
-
-  if entity.type ~= "rocket-silo" then
-
-    -- Check if player has space for proxy item
-    --/c game.player.print(serpent.dump(game.player.get_inventory(defines.inventory.player_main).can_insert{name="module-inserter-proxy", count=1} or game.player.get_inventory(defines.inventory.player_quickbar).can_insert{name="module-inserter-proxy", count=1}))
-
-    local proxy = {name="module-inserter-proxy", count=1}
-
-    --if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy) then
-    -- Check if entity is valid and stored in config as a source.
-    local index = 0
-    for i = 1, #config do
-      if config[i].from == entity.name then
-        index = i
-        break
-      end
-    end
-    if index == 0 then
+      -- Config for this player does not exist yet, so we have nothing to do.
+      -- We can create it now for later usage.
+      global["config"][player.name] = {}
       entity.cancel_deconstruction(entity.force)
       return
     end
-    local freeSlots = 0
-    for i=1,#player.get_inventory(defines.inventory.player_quickbar) do
-      if not player.get_inventory(defines.inventory.player_quickbar)[i].valid_for_read then
-        freeSlots = freeSlots + 1
-      end
-    end
 
-    if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or
-      (freeSlots > 1 and player.cursor_stack.valid_for_read) or
-      (freeSlots > 0 and not player.cursor_stack.valid_for_read) then
-      local modules = util.table.deepcopy(config[index].to)
-      local cTable = {}
-      for i, module in pairs(modules) do
-        if module then
-          if not cTable[module] then
-            cTable[module] = 1
-          else
-            cTable[module] = cTable[module] + 1
-          end
+    local config = global["config"][player.name]
+
+    if entity.type ~= "rocket-silo" then
+
+      -- Check if player has space for proxy item
+      --/c game.player.print(serpent.dump(game.player.get_inventory(defines.inventory.player_main).can_insert{name="module-inserter-proxy", count=1} or game.player.get_inventory(defines.inventory.player_quickbar).can_insert{name="module-inserter-proxy", count=1}))
+
+      local proxy = {name="module-inserter-proxy", count=1}
+
+      --if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy) then
+      -- Check if entity is valid and stored in config as a source.
+      local index = 0
+      for i = 1, #config do
+        if config[i].from == entity.name then
+          index = i
+          break
         end
-        if module and game.item_prototypes[module].module_effects and game.item_prototypes[module].module_effects["productivity"] then
-          if game.item_prototypes[module].module_effects["productivity"] ~= 0 then
-            if entity.type == "beacon" then
-              player.print("Can't insert "..module.." in "..entity.name)
-              entity.cancel_deconstruction(entity.force)
-              return
+      end
+      if index == 0 then
+        entity.cancel_deconstruction(entity.force)
+        return
+      end
+      local freeSlots = 0
+      for i=1,#player.get_inventory(defines.inventory.player_quickbar) do
+        if not player.get_inventory(defines.inventory.player_quickbar)[i].valid_for_read then
+          freeSlots = freeSlots + 1
+        end
+      end
+
+      if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or
+        (freeSlots > 1 and player.cursor_stack.valid_for_read) or
+        (freeSlots > 0 and not player.cursor_stack.valid_for_read) then
+        local modules = util.table.deepcopy(config[index].to)
+        local cTable = {}
+        for i, module in pairs(modules) do
+          if module then
+            if not cTable[module] then
+              cTable[module] = 1
+            else
+              cTable[module] = cTable[module] + 1
             end
-            if entity.type == "assembling-machine" then
-              if entity.recipe and not productivityAllowed[entity.recipe.name] then
-                player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
+          end
+          if module and game.item_prototypes[module].module_effects and game.item_prototypes[module].module_effects["productivity"] then
+            if game.item_prototypes[module].module_effects["productivity"] ~= 0 then
+              if entity.type == "beacon" then
+                player.print("Can't insert "..module.." in "..entity.name)
                 entity.cancel_deconstruction(entity.force)
                 return
+              end
+              if entity.type == "assembling-machine" then
+                if entity.recipe and not productivityAllowed[entity.recipe.name] then
+                  player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
+                  entity.cancel_deconstruction(entity.force)
+                  return
+                end
               end
             end
           end
         end
-      end
-      if entity.type == "assembling-machine" and not entity.recipe then
-        player.print("Can't insert modules in assembler without recipe")
-        entity.cancel_deconstruction(entity.force)
-        return
-      end
-      local inventory = entity.get_inventory(typeToSlot[entity.type])
-      local contents = inventory.get_contents()
-      if not util.table.compare(cTable,contents) then
-        -- proxy entity that the robots fly to
-        local new_entity = {
-          name = "entity-ghost",
-          inner_name = "module-inserter-proxy",
-          position = entity.position,
-          direction = entity.direction,
-          force = entity.force
-        }
-        local key = entityKey(new_entity)
-        if global.entitiesToInsert[key] then
-          global.entitiesToInsert[key] = nil
-          if player.get_item_count("module-inserter-proxy") > 0 then
-            player.remove_item(proxy)
+        if entity.type == "assembling-machine" and not entity.recipe then
+          player.print("Can't insert modules in assembler without recipe")
+          entity.cancel_deconstruction(entity.force)
+          return
+        end
+        local inventory = entity.get_inventory(typeToSlot[entity.type])
+        local contents = inventory.get_contents()
+        if not util.table.compare(cTable,contents) then
+          -- proxy entity that the robots fly to
+          local new_entity = {
+            name = "entity-ghost",
+            inner_name = "module-inserter-proxy",
+            position = entity.position,
+            direction = entity.direction,
+            force = entity.force
+          }
+          if string.find(entity.name, "replicator%-%d") then
+            new_entity.position = subPos(new_entity.position, {x=0.5,y=0.5})
           end
-          local toDelete = false
-          for tick, t in pairs(global.removeTicks) do
-            for k, g in pairs(t) do
-              if g.key == key then
-                toDelete = {t=tick, k=k}
+          local key = entityKey(new_entity)
+          if global.entitiesToInsert[key] then
+            global.entitiesToInsert[key] = nil
+            if player.get_item_count("module-inserter-proxy") > 0 then
+              player.remove_item(proxy)
+            end
+            local toDelete = false
+            for tick, t in pairs(global.removeTicks) do
+              for k, g in pairs(t) do
+                if g.key == key then
+                  toDelete = {t=tick, k=k}
+                  break
+                end
+              end
+              if toDelete then
                 break
               end
             end
             if toDelete then
-              break
+              global.removeTicks[toDelete.t][toDelete.k] = nil
             end
           end
-          if toDelete then
-            global.removeTicks[toDelete.t][toDelete.k] = nil
+          if not global.entitiesToInsert[key] then -- or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
+            local ghost = entity.surface.create_entity(new_entity)
+            global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
+            --ghost.time_to_live = 60*30
+            local delTick = game.tick + ghost.time_to_live + 2
+            global.removeTicks[delTick] = global.removeTicks[delTick] or {}
+            table.insert(global.removeTicks[delTick], {p=player,g=ghost, key = key})
+            player.insert{name="module-inserter-proxy", count=1}
           end
-        end
-        if not global.entitiesToInsert[key] then -- or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
-          local ghost = entity.surface.create_entity(new_entity)
-          global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
-          --ghost.time_to_live = 60*30
-          local delTick = game.tick + ghost.time_to_live + 2
-          global.removeTicks[delTick] = global.removeTicks[delTick] or {}
-          table.insert(global.removeTicks[delTick], {p=player,g=ghost, key = key})
-          player.insert{name="module-inserter-proxy", count=1}
         end
       end
     end
+    entity.cancel_deconstruction(entity.force)
+  end)
+  if not status then
+    debugDump(err, true)
   end
-  entity.cancel_deconstruction(entity.force)
 end)
 
 local function initGlob()
@@ -241,6 +254,43 @@ local function initGlob()
     global.removeTicks = {}
     global.guiVersion = {}
     global.version = "0.0.9"
+  end
+
+  --hanndle removed items here
+  local items = game.item_prototypes
+  for name, p in pairs(global.config) do
+    for i=#p,1,-1 do
+      if p[i].from ~= "" and not items[p[i].from] then
+        global.config[name][i].from = ""
+        global.config[name][i].to = ""
+              debugDump(p[i].from,true)
+      end
+      if type(p[i].to) == "table" then
+        for k, m in pairs(p[i].to) do
+          if m and not items[m] then
+            global.config[name][i].to[k] = false
+          end
+        end
+      end
+    end
+  end
+
+  for player, store in pairs(global.storage) do
+    for name, p in pairs(store) do
+      for i=#p,1,-1 do
+        if p[i].from ~= "" and not items[p[i].from] then
+          global.storage[player][name][i].from = ""
+          global.storage[player][name][i].to = ""
+        end
+        if type(p[i].to) == "table" then
+          for k, m in pairs(p[i].to) do
+            if m and not items[m] then
+              global.storage[player][name][i].to[k] = false
+            end
+          end
+        end
+      end
+    end
   end
   global.version = "0.0.9"
 end
