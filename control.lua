@@ -457,9 +457,12 @@ game.on_event(defines.events.on_gui_click, function(event)
     for _,k in pairs(global.removeTicks) do
       c = c+#k
     end
+    debugDump("#config "..#global.config[player.name],true)
     debugDump("#Remove "..c,true)
   elseif element.name  == "module-inserter-storage-store" then
     gui_store(player)
+  elseif element.name == "module-inserter-save-as" then
+    gui_save_as(player)
   else
     event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
     local type, index, slot = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")

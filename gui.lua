@@ -165,7 +165,7 @@ function gui_open_frame(player)
     else
       global["config-tmp"][player.name][i] = {
         from = global["config"][player.name][i].from,
-        to = global["config"][player.name][i].to
+        to = util.table.deepcopy(global["config"][player.name][i].to)
       }
     end
   end
@@ -247,7 +247,20 @@ function gui_open_frame(player)
       name = "module-inserter-debug",
       caption = "D"
     }
+  else
+    button_grid.add{type="label", caption=""}
   end
+  button_grid.add{
+    type = "button",
+    name = "module-inserter-save-as",
+    caption = {"module-inserter-config-button-save-as"}
+  }
+
+  local saveText = button_grid.add{
+    type = "textfield",
+    name = "module-inserter-save-as-text"
+  }
+  saveText.text = global.config[player.name].loaded or ""
 
   storage_frame = player.gui.left.add{
     type = "frame",
@@ -313,7 +326,7 @@ function gui_open_frame(player)
   end
 end
 
-function gui_save_changes(player)
+function gui_save_changes(player, name)
   -- Saving changes consists in:
   --   1. copying config-tmp to config
   --   2. removing config-tmp
@@ -330,12 +343,13 @@ function gui_save_changes(player)
       else
         global["config"][player.name][i] = {
           from = global["config-tmp"][player.name][i].from,
-          to = global["config-tmp"][player.name][i].to
+          to = util.table.deepcopy(global["config-tmp"][player.name][i].to)
         }
       end
     end
     global["config-tmp"][player.name] = nil
   end
+  global.config[player.name].loaded = name or nil
   --saveVar(global, "saved")
   local frame = player.gui.left["module-inserter-config-frame"]
   local storage_frame = player.gui.left["module-inserter-storage-frame"]
@@ -353,6 +367,10 @@ function gui_clear_all(player)
   local frame = player.gui.left["module-inserter-config-frame"]
   if not frame then return end
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
+  global.config[player.name].loaded = nil
+  local frame = player.gui.left["module-inserter-config-frame"]
+  frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
+  
   for i = 1, MAX_CONFIG_SIZE do
     global["config-tmp"][player.name][i] = { from = "", to = {} }
     ruleset_grid["module-inserter-from-" .. i].style = "mi-icon-style"
@@ -536,6 +554,37 @@ function gui_store(player)
   --saveVar(global, "stored")
 end
 
+function gui_save_as(player)
+  global["storage"][player.name] = global["storage"][player.name] or {}
+  local storage_frame = player.gui.left["module-inserter-storage-frame"]
+  local frame = player.gui.left["module-inserter-config-frame"]
+
+  if not storage_frame or not frame then return end
+  local textfield = frame["module-inserter-button-grid"]["module-inserter-save-as-text"]
+  local name = textfield.text
+  name = string.match(name, "^%s*(.-)%s*$")
+
+  if not name or name == "" then
+    gui_display_message(frame, true, "module-inserter-storage-name-not-set")
+    return
+  end
+  local index = count_keys(global["storage"][player.name]) + 1
+  if not global["storage"][player.name][name] and index > MAX_STORAGE_SIZE then
+    gui_display_message(frame, false, "module-inserter-storage-too-long")
+    return
+  end
+
+  global["storage"][player.name][name] = {}
+  local i = 0
+  for i = 1, #global["config-tmp"][player.name] do
+    global["storage"][player.name][name][i] = {
+      from = global["config-tmp"][player.name][i].from,
+      to = util.table.deepcopy(global["config-tmp"][player.name][i].to)
+    }
+  end
+  gui_save_changes(player, name)
+end
+
 function gui_restore(player, index)
   local frame = player.gui.left["module-inserter-config-frame"]
   local storage_frame = player.gui.left["module-inserter-storage-frame"]
@@ -557,7 +606,7 @@ function gui_restore(player, index)
     else
       global["config-tmp"][player.name][i] = {
         from = global["storage"][player.name][name][i].from,
-        to = global["storage"][player.name][name][i].to
+        to = util.table.deepcopy(global["storage"][player.name][name][i].to)
       }
     end
     local style = global["config-tmp"][player.name][i].from ~= "" and "mi-icon-"..global["config-tmp"][player.name][i].from or "mi-icon-style"
@@ -566,6 +615,7 @@ function gui_restore(player, index)
     gui_update_modules(player, i)
   end
   gui_display_message(storage_frame, true, "---")
+  gui_save_changes(player, name)
 end
 
 function gui_remove(player, index)
