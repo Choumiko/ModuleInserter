@@ -25,8 +25,9 @@ for i, ent in pairs(metaitem) do
   nameToSlots[ent.name] = ent.amount
 end
 
+game.forces.player.technologies["mi-meta-productivityRecipes"].reload()
 productivityRecipes = game.forces.player.technologies["mi-meta-productivityRecipes"].effects
-productivityAllowed = {}
+productivityAllowed = #productivityRecipes > 0 and {} or false
 for _, recipe in pairs(productivityRecipes) do
   productivityAllowed[recipe.recipe] = true
 end
@@ -139,6 +140,11 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
       if player.get_inventory(defines.inventory.player_main).can_insert(proxy) or
         (freeSlots > 1 and player.cursor_stack.valid_for_read) or
         (freeSlots > 0 and not player.cursor_stack.valid_for_read) then
+        if entity.type == "assembling-machine" and not entity.recipe then
+          player.print("Can't insert modules in assembler without recipe")
+          entity.cancel_deconstruction(entity.force)
+          return
+        end
         local modules = util.table.deepcopy(config[index].to)
         local cTable = {}
         for i, module in pairs(modules) do
@@ -149,15 +155,16 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
               cTable[module] = cTable[module] + 1
             end
           end
-          if module and game.item_prototypes[module].module_effects and game.item_prototypes[module].module_effects["productivity"] then
-            if game.item_prototypes[module].module_effects["productivity"] ~= 0 then
+          local prototype = game.item_prototypes[module]
+          if module and prototype.module_effects and prototype.module_effects["productivity"] then
+            if prototype.module_effects["productivity"] ~= 0 then
               if entity.type == "beacon" then
                 player.print("Can't insert "..module.." in "..entity.name)
                 entity.cancel_deconstruction(entity.force)
                 return
               end
-              if entity.type == "assembling-machine" then
-                if entity.recipe and not productivityAllowed[entity.recipe.name] then
+              if productivityAllowed and entity.type == "assembling-machine" then
+                if entity.recipe and not productivityAllowed[entity.recipe.name] == true then
                   player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
                   entity.cancel_deconstruction(entity.force)
                   return
@@ -165,11 +172,6 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
               end
             end
           end
-        end
-        if entity.type == "assembling-machine" and not entity.recipe then
-          player.print("Can't insert modules in assembler without recipe")
-          entity.cancel_deconstruction(entity.force)
-          return
         end
         local inventory = entity.get_inventory(typeToSlot[entity.type])
         local contents = inventory.get_contents()
@@ -263,7 +265,7 @@ local function initGlob()
       if p[i].from ~= "" and not items[p[i].from] then
         global.config[name][i].from = ""
         global.config[name][i].to = ""
-              debugDump(p[i].from,true)
+        debugDump(p[i].from,true)
       end
       if type(p[i].to) == "table" then
         for k, m in pairs(p[i].to) do
@@ -399,20 +401,13 @@ game.on_event(defines.events.on_robot_built_entity, function(event)
         end
         if type(modules) == "table" then
           local logisticsNetwork = origEntity.surface.find_logistic_network_by_position(origEntity.position, origEntity.force.name)
-          --          if not logisticsNetwork then
-          --            for _, network in pairs(player.force.logistic_networks[origEntity.surface.name]) do
-          --              local cell = network.find_cell_closest_to(origEntity.position)
-          --              if cell and not cell.mobile and cell.is_in_construction_range(origEntity.position) and cell.logistic_network then
-          --                logisticsNetwork = cell.logistic_network
-          --              end
-          --            end
-          --          end
           for i,module in pairs(modules) do
             if module then
               if inventory.can_insert{name = module, count = 1} then
                 if player.get_item_count(module) > 0 then
                   inventory.insert{name = module, count = 1}
                   player.remove_item{name = module, count = 1}
+                  --inventory.insert{name = module, count = player.remove_item{name= module, count = 1}}
                 else
                   --check logisticsnetwork
                   if logisticsNetwork and logisticsNetwork.get_item_count(module) > 0 then
@@ -515,5 +510,9 @@ remote.add_interface("mi",
   {
     saveVar = function(name)
       saveVar(global, name)
-    end
+    end,
+    limits = function()
+      debugDump(productivityAllowed,true)
+      debugDump(productivityRecipes,true)
+    end,
   })

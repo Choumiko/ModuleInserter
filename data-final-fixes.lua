@@ -11,7 +11,7 @@ metarecipe.hidden = true
 local metaProductivityRecipesR = copyPrototype("technology", "automated-construction", "mi-meta-productivityRecipes")
 metaProductivityRecipesR.ingredients = {}
 metaProductivityRecipesR.enabled = false
-metaProductivityRecipesR.hidden = false
+metaProductivityRecipesR.hidden = true
 metaProductivityRecipesR.effects = {}
 
 
