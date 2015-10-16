@@ -18,20 +18,6 @@ typeToSlot["furnace"] = defines.inventory.assembling_machine_modules
 typeToSlot["rocket-silo"] = defines.inventory.assembling_machine_modules
 typeToSlot["beacon"] = 1
 
-nameToSlots = {}
-local metaitem = game.forces.player.recipes["mi-meta"].ingredients
-
-for i, ent in pairs(metaitem) do
-  nameToSlots[ent.name] = ent.amount
-end
-
-game.forces.player.technologies["mi-meta-productivityRecipes"].reload()
-productivityRecipes = game.forces.player.technologies["mi-meta-productivityRecipes"].effects
-productivityAllowed = #productivityRecipes > 0 and {} or false
-for _, recipe in pairs(productivityRecipes) do
-  productivityAllowed[recipe.recipe] = true
-end
-
 function subPos(p1,p2)
   local p2 = p2 or {x=0,y=0}
   return {x=p1.x-p2.x, y=p1.y-p2.y}
@@ -60,7 +46,7 @@ function hasPocketBots(player)
   return port
 end
 
-game.on_event(defines.events.on_marked_for_deconstruction, function(event)
+script.on_event(defines.events.on_marked_for_deconstruction, function(event)
   local status, err = pcall(function()
     local entity = event.entity
     local deconstruction = false
@@ -163,8 +149,8 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
                 entity.cancel_deconstruction(entity.force)
                 return
               end
-              if productivityAllowed and entity.type == "assembling-machine" then
-                if entity.recipe and not productivityAllowed[entity.recipe.name] == true then
+              if global.productivityAllowed and entity.type == "assembling-machine" then
+                if entity.recipe and not global.productivityAllowed[entity.recipe.name] == true then
                   player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
                   entity.cancel_deconstruction(entity.force)
                   return
@@ -229,7 +215,6 @@ game.on_event(defines.events.on_marked_for_deconstruction, function(event)
 end)
 
 local function initGlob()
-
   if not global.version or global.version < "0.0.2" then
     global.config = {}
     global["config-tmp"] = {}
@@ -245,20 +230,41 @@ local function initGlob()
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
   global.guiVersion = global.guiVersion or {}
+  global.nameToSlots = global.nameToSlots or {}
+  global.productivityAllowed = global.productivityAllowed or {}
 
-  if global.version < "0.0.7" then
-    global["storage"] = {}
-    global.version = "0.0.7"
+  global.version = "0.1.1"
+end
+
+local function getMetaItemData()
+  local metaitem = game.forces.player.recipes["mi-meta"].ingredients
+
+  for i, ent in pairs(metaitem) do
+    global.nameToSlots[ent.name] = ent.amount
   end
 
-  if global.version < "0.0.9" then
-    global.entitiesToInsert = {}
-    global.removeTicks = {}
-    global.guiVersion = {}
-    global.version = "0.0.9"
+  game.forces.player.technologies["mi-meta-productivityRecipes"].reload()
+  productivityRecipes = game.forces.player.technologies["mi-meta-productivityRecipes"].effects
+  global.productivityAllowed = #productivityRecipes > 0 and global.productivityAllowed or false
+  for _, recipe in pairs(productivityRecipes) do
+    global.productivityAllowed[recipe.recipe] = true
   end
+end
 
-  --hanndle removed items here
+local function oninit()
+  initGlob()
+  getMetaItemData()
+  script.on_event(defines.events.on_tick, function() update_gui() end)
+end
+
+local function onload()
+  initGlob()
+  script.on_event(defines.events.on_tick, function() update_gui() end)
+end
+
+local function on_configuration_changed(data)
+  getMetaItemData()
+  --handle removed items
   local items = game.item_prototypes
   for name, p in pairs(global.config) do
     for i=#p,1,-1 do
@@ -294,17 +300,6 @@ local function initGlob()
       end
     end
   end
-  global.version = "0.0.9"
-end
-
-local function oninit()
-  initGlob()
-  game.on_event(defines.events.on_tick, function() update_gui() end)
-end
-
-local function onload()
-  initGlob()
-  game.on_event(defines.events.on_tick, function() update_gui() end)
 end
 
 function update_gui(player)
@@ -319,6 +314,24 @@ function update_gui(player)
       end
       gui_init(player)
     else
+      for player, store in pairs(global.storage) do
+        for name, p in pairs(store) do
+          for i=#p,1,-1 do
+            if p[i].from ~= "" and not items[p[i].from] then
+              global.storage[player][name][i].from = ""
+              global.storage[player][name][i].to = ""
+            end
+            if type(p[i].to) == "table" then
+              for k, m in pairs(p[i].to) do
+                if m and not items[m] then
+                  global.storage[player][name][i].to[k] = false
+                end
+              end
+            end
+          end
+        end
+      end
+
       for i,player in pairs(game.players) do
         if player.valid and player.connected then
           if not global.guiVersion[player.name] then
@@ -332,7 +345,7 @@ function update_gui(player)
         end
       end
     end
-    game.on_event(defines.events.on_tick, on_tick)
+    script.on_event(defines.events.on_tick, on_tick)
   end)
   if not status then
     debugDump(err, true)
@@ -358,8 +371,9 @@ function get_config_item(player, index, type1)
   return game.get_localised_item_name(global["config-tmp"][player.name][index][type1])
 end
 
-game.on_init(oninit)
-game.on_load(onload)
+script.on_init(oninit)
+script.on_load(onload)
+script.on_configuration_changed(on_configuration_changed)
 
 function on_tick(event)
   if global.removeTicks[event.tick] then
@@ -378,7 +392,7 @@ function on_tick(event)
   end
 end
 
-game.on_event(defines.events.on_robot_built_entity, function(event)
+script.on_event(defines.events.on_robot_built_entity, function(event)
   local status, err = pcall(function()
     local entity = event.created_entity
     if entity.name == "module-inserter-proxy" then
@@ -430,7 +444,7 @@ game.on_event(defines.events.on_robot_built_entity, function(event)
   end
 end)
 
-game.on_event(defines.events.on_gui_click, function(event)
+script.on_event(defines.events.on_gui_click, function(event)
   local element = event.element
   --debugDump(element.name, true)
   local player = game.get_player(event.player_index)
@@ -481,7 +495,7 @@ game.on_event(defines.events.on_gui_click, function(event)
   end
 end)
 
-game.on_event(defines.events.on_research_finished, function(event)
+script.on_event(defines.events.on_research_finished, function(event)
   if event.research.name == 'automated-construction' then
     for _, player in pairs(event.research.force.players) do
       gui_init(player, true)
@@ -506,7 +520,7 @@ end
 function saveVar(var, name)
   local var = var or global
   local n = name or ""
-  game.makefile("module"..n..".lua", serpent.block(var, {name="glob"}))
+  game.write_file("module"..n..".lua", serpent.block(var, {name="glob"}))
 end
 
 remote.add_interface("mi",

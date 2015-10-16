@@ -416,7 +416,7 @@ function gui_set_rule(player, type1, index)
         end
       end
     end
-    if stack.type ~= "empty" and not nameToSlots[stack.name] then
+    if stack.type ~= "empty" and not global.nameToSlots[stack.name] then
       gui_display_message(frame, false, "module-inserter-item-no-slots")
       return
     end
@@ -430,7 +430,7 @@ function gui_set_rule(player, type1, index)
   ruleset_grid["module-inserter-" .. type1 .. "-" .. index].style = style
   ruleset_grid["module-inserter-" .. type1 .. "-" .. index].state = false
   if type1 == "from" then
-    --local slots = nameToSlots[global["config-tmp"][player.name][index].from] or "-"
+    --local slots = global.nameToSlots[global["config-tmp"][player.name][index].from] or "-"
     --ruleset_grid["module-inserter-slots-" .. index].caption = slots
     gui_update_modules(player, index)
   end
@@ -453,7 +453,7 @@ function gui_set_modules(player, index, slot)
   local type1 = "to"
   local config = global["config-tmp"][player.name][index]
   local modules = type(config[type1]) == "table" and config[type1] or {}
-  local maxSlots = nameToSlots[config.from]
+  local maxSlots = global.nameToSlots[config.from]
   if stack.type == "module" then
     if game.entity_prototypes[config.from].type == "beacon" and game.item_prototypes[stack.name].module_effects and game.item_prototypes[stack.name].module_effects["productivity"] then
       if game.item_prototypes[stack.name].module_effects["productivity"] ~= 0 then
@@ -475,7 +475,7 @@ end
 
 function gui_update_modules(player, index)
   local frame = player.gui.left["module-inserter-config-frame"]
-  local slots = nameToSlots[global["config-tmp"][player.name][index].from] or 1
+  local slots = global.nameToSlots[global["config-tmp"][player.name][index].from] or 1
   local modules = global["config-tmp"][player.name][index].to
   local flow = frame["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
   for i=#flow.children_names,1,-1 do
