@@ -314,24 +314,6 @@ function update_gui(player)
       end
       gui_init(player)
     else
-      for player, store in pairs(global.storage) do
-        for name, p in pairs(store) do
-          for i=#p,1,-1 do
-            if p[i].from ~= "" and not items[p[i].from] then
-              global.storage[player][name][i].from = ""
-              global.storage[player][name][i].to = ""
-            end
-            if type(p[i].to) == "table" then
-              for k, m in pairs(p[i].to) do
-                if m and not items[m] then
-                  global.storage[player][name][i].to[k] = false
-                end
-              end
-            end
-          end
-        end
-      end
-
       for i,player in pairs(game.players) do
         if player.valid and player.connected then
           if not global.guiVersion[player.name] then
