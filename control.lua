@@ -7,6 +7,7 @@ DEBUG = false
 
 require "gui"
 
+MOD_NAME = "ModuleInserter"
 
 types = {["mining-drill"]=true,["assembling-machine"]=true,lab=true, ["rocket-silo"] = true, furnace=true, beacon=true}
 
@@ -214,28 +215,6 @@ script.on_event(defines.events.on_marked_for_deconstruction, function(event)
   end
 end)
 
-local function initGlob()
-  if not global.version or global.version < "0.0.2" then
-    global.config = {}
-    global["config-tmp"] = {}
-    global["storage"] = {}
-    global.entitiesToInsert = {}
-    global.removeTicks = {}
-    global.version = "0.0.2"
-  end
-
-  global.entitiesToInsert = global.entitiesToInsert or {}
-  global.removeTicks = global.removeTicks or {}
-  global["config"] = global["config"] or {}
-  global["config-tmp"] = global["config-tmp"] or {}
-  global["storage"] = global["storage"] or {}
-  global.guiVersion = global.guiVersion or {}
-  global.nameToSlots = global.nameToSlots or {}
-  global.productivityAllowed = global.productivityAllowed or {}
-
-  global.version = "0.1.1"
-end
-
 local function getMetaItemData()
   local metaitem = game.forces.player.recipes["mi-meta"].ingredients
 
@@ -251,20 +230,7 @@ local function getMetaItemData()
   end
 end
 
-local function oninit()
-  initGlob()
-  getMetaItemData()
-  script.on_event(defines.events.on_tick, function() update_gui() end)
-end
-
-local function onload()
-  initGlob()
-  script.on_event(defines.events.on_tick, function() update_gui() end)
-end
-
-local function on_configuration_changed(data)
-  getMetaItemData()
-  --handle removed items
+local function remove_invalid_items()
   local items = game.item_prototypes
   for name, p in pairs(global.config) do
     for i=#p,1,-1 do
@@ -302,37 +268,103 @@ local function on_configuration_changed(data)
   end
 end
 
-function update_gui(player)
+function update_gui()
   local status, err = pcall(function()
-    if player then
-      if not global.guiVersion[player.name] then
-        global.guiVersion[player.name] = "0.0.0"
-      end
-      if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
+    for i,player in pairs(game.players) do
+      if player.valid and player.gui.top["module-inserter-config-button"] then
         player.gui.top["module-inserter-config-button"].destroy()
-        global.guiVersion[player.name] = "0.0.7"
       end
       gui_init(player)
-    else
-      for i,player in pairs(game.players) do
-        if player.valid and player.connected then
-          if not global.guiVersion[player.name] then
-            global.guiVersion[player.name] = "0.0.0"
-          end
-          if global.guiVersion[player.name] < "0.0.7" and player.gui.top["module-inserter-config-button"] then
-            player.gui.top["module-inserter-config-button"].destroy()
-            global.guiVersion[player.name] = "0.0.7"
-          end
-          gui_init(player)
-        end
-      end
     end
-    script.on_event(defines.events.on_tick, on_tick)
   end)
   if not status then
     debugDump(err, true)
   end
 end
+
+local function init_global()
+  global.entitiesToInsert = global.entitiesToInsert or {}
+  global.removeTicks = global.removeTicks or {}
+  global["config"] = global["config"] or {}
+  global["config-tmp"] = global["config-tmp"] or {}
+  global["storage"] = global["storage"] or {}
+  global.nameToSlots = global.nameToSlots or {}
+  global.productivityAllowed = global.productivityAllowed or {}
+end
+
+local function init_player(player)
+--setup player specific stuff (gui settings etc.)
+end
+
+local function init_players()
+  for i,player in pairs(game.players) do
+    init_player(player)
+  end
+end
+
+local function init_force(force)
+--force specific
+end
+
+local function init_forces()
+  for i, force in pairs(game.forces) do
+    init_force(force)
+  end
+end
+
+local function on_init()
+  init_global()
+  getMetaItemData()
+  init_forces()
+end
+
+local function on_load()
+-- set metatables, register conditional event handlers, local references to global
+end
+
+-- run once
+local function on_configuration_changed(data)
+  getMetaItemData()
+  if not data or not data.mod_changes then
+    return
+  end
+  if data.mod_changes[MOD_NAME] then
+    local newVersion = data.mod_changes[MOD_NAME].new_version
+    local oldVersion = data.mod_changes[MOD_NAME].old_version
+    -- mod was added to existing save
+    if not oldVersion then
+      init_global()
+      init_forces()
+      init_players()
+    else
+      if oldVersion < "0.1.3" then
+        update_gui()
+      end
+    --mod was updated
+    -- update/change gui for all players via game.players.gui ?
+    end
+  end
+  remove_invalid_items()
+  --check for other mods
+end
+
+local function on_player_created(event)
+  init_player(game.players[event.player_index])
+end
+
+local function on_force_created(event)
+  init_force(event.force)
+end
+local function on_forces_merging(event)
+
+end
+
+script.on_init(on_init)
+script.on_load(on_load)
+script.on_configuration_changed(on_configuration_changed)
+script.on_event(defines.events.on_player_created, on_player_created)
+script.on_event(defines.events.on_force_created, on_force_created)
+script.on_event(defines.events.on_forces_merging, on_forces_merging)
 
 function count_keys(hashmap)
   local result = 0
@@ -350,12 +382,8 @@ function get_config_item(player, index, type1)
     return {"upgrade-planner-item-not-set"}
 
   end
-  return game.get_localised_item_name(global["config-tmp"][player.name][index][type1])
+  return game.item_prototypes[global["config-tmp"][player.name][index][type1]].localised_name
 end
-
-script.on_init(oninit)
-script.on_load(onload)
-script.on_configuration_changed(on_configuration_changed)
 
 function on_tick(event)
   if global.removeTicks[event.tick] then
@@ -427,53 +455,53 @@ script.on_event(defines.events.on_robot_built_entity, function(event)
 end)
 
 script.on_event(defines.events.on_gui_click, function(event)
-  local element = event.element
-  --debugDump(element.name, true)
-  local player = game.get_player(event.player_index)
-  if not global.guiVersion[player.name] then global.guiVersion[player.name] = "0.0.0" end
-  if global.guiVersion[player.name] < "0.0.7" then
-    update_gui(player)
-    return
-  end
+  local status, err = pcall(function()
+    local element = event.element
+    --debugDump(element.name, true)
+    local player = game.get_player(event.player_index)
 
-  if element.name == "module-inserter-config-button" then
-    gui_open_frame(player)
-  elseif element.name == "module-inserter-apply" then
-    gui_save_changes(player)
-  elseif element.name == "module-inserter-clear-all" then
-    gui_clear_all(player)
-  elseif element.name == "module-inserter-debug" then
-    saveVar(global,"debugButton")
-    local c = 0
-    for _,k in pairs(global.entitiesToInsert) do
-      c = c+1
-    end
-    debugDump("#Entities "..c,true)
-    c = 0
-    for _,k in pairs(global.removeTicks) do
-      c = c+#k
-    end
-    debugDump("#config "..#global.config[player.name],true)
-    debugDump("#Remove "..c,true)
-  elseif element.name  == "module-inserter-storage-store" then
-    gui_store(player)
-  elseif element.name == "module-inserter-save-as" then
-    gui_save_as(player)
-  else
-    event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
-    local type, index, slot = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
-    --debugDump({t=type,i=index,s=slot},true)
-    if type and index then
-      if type == "from" then
-        gui_set_rule(player, type, tonumber(index))
-      elseif type == "to" then
-        gui_set_modules(player, tonumber(index), tonumber(slot))
-      elseif type == "restore" then
-        gui_restore(player, tonumber(index))
-      elseif type == "remove" then
-        gui_remove(player, tonumber(index))
+    if element.name == "module-inserter-config-button" then
+      gui_open_frame(player)
+    elseif element.name == "module-inserter-apply" then
+      gui_save_changes(player)
+    elseif element.name == "module-inserter-clear-all" then
+      gui_clear_all(player)
+    elseif element.name == "module-inserter-debug" then
+      saveVar(global,"debugButton")
+      local c = 0
+      for _,k in pairs(global.entitiesToInsert) do
+        c = c+1
+      end
+      debugDump("#Entities "..c,true)
+      c = 0
+      for _,k in pairs(global.removeTicks) do
+        c = c+#k
+      end
+      debugDump("#config "..#global.config[player.name],true)
+      debugDump("#Remove "..c,true)
+    elseif element.name  == "module-inserter-storage-store" then
+      gui_store(player)
+    elseif element.name == "module-inserter-save-as" then
+      gui_save_as(player)
+    else
+      event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
+      local type, index, slot = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
+      --debugDump({t=type,i=index,s=slot},true)
+      if type and index then
+        if type == "from" then
+          gui_set_rule(player, type, tonumber(index))
+        elseif type == "to" then
+          gui_set_modules(player, tonumber(index), tonumber(slot))
+        elseif type == "restore" then
+          gui_restore(player, tonumber(index))
+        elseif type == "remove" then
+          gui_remove(player, tonumber(index))
+        end
       end
     end
+  end)
+  if not status then
+    debugDump(err, true)
   end
 end)
 
