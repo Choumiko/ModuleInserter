@@ -146,6 +146,9 @@ function gui_open_frame(player)
       storage_frame.destroy()
     end
     global["config-tmp"][player.name] = nil
+    if remote.interfaces.YARM and global.settings[player.name].YARM_old_expando then
+      remote.call("YARM", "show_expando", player.index)
+    end
     return
   end
 
@@ -168,7 +171,9 @@ function gui_open_frame(player)
       }
     end
   end
-
+  if remote.interfaces.YARM then
+    global.settings[player.name].YARM_old_expando = remote.call("YARM", "hide_expando", player.index)
+  end
   -- Now we can build the GUI.
   frame = player.gui.left.add{
     type = "frame",
@@ -358,6 +363,9 @@ function gui_save_changes(player, name)
     if storage_frame then
       storage_frame.destroy()
     end
+    if remote.interfaces.YARM and global.settings[player.name].YARM_old_expando then
+      remote.call("YARM", "show_expando", player.index)
+    end
   end
 end
 
@@ -369,7 +377,7 @@ function gui_clear_all(player)
   global.config[player.name].loaded = nil
   local frame = player.gui.left["module-inserter-config-frame"]
   frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
-  
+
   for i = 1, MAX_CONFIG_SIZE do
     global["config-tmp"][player.name][i] = { from = "", to = {} }
     ruleset_grid["module-inserter-from-" .. i].style = "mi-icon-style"

@@ -290,10 +290,11 @@ local function init_global()
   global["storage"] = global["storage"] or {}
   global.nameToSlots = global.nameToSlots or {}
   global.productivityAllowed = global.productivityAllowed or {}
+  global.settings = global.settings or {}
 end
 
 local function init_player(player)
---setup player specific stuff (gui settings etc.)
+  global.settings[player.name] = global.settings[player.name] or {}
 end
 
 local function init_players()
@@ -338,6 +339,8 @@ local function on_configuration_changed(data)
       init_players()
     else
       if oldVersion < "0.1.3" then
+        init_global()
+        init_players()
         update_gui()
       end
     --mod was updated
@@ -542,4 +545,8 @@ remote.add_interface("mi",
       debugDump(productivityAllowed,true)
       debugDump(productivityRecipes,true)
     end,
+    init = function()
+      init_global()
+      init_players()
+    end
   })
