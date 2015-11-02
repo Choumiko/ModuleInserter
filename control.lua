@@ -325,7 +325,6 @@ end
 
 -- run once
 local function on_configuration_changed(data)
-  getMetaItemData()
   if not data or not data.mod_changes then
     return
   end
@@ -337,6 +336,7 @@ local function on_configuration_changed(data)
       init_global()
       init_forces()
       init_players()
+      update_gui()
     else
       if oldVersion < "0.1.3" then
         init_global()
@@ -347,6 +347,7 @@ local function on_configuration_changed(data)
     -- update/change gui for all players via game.players.gui ?
     end
   end
+  getMetaItemData()
   remove_invalid_items()
   --check for other mods
 end
@@ -548,5 +549,6 @@ remote.add_interface("mi",
     init = function()
       init_global()
       init_players()
+      update_gui()
     end
   })
