@@ -146,7 +146,7 @@ function gui_open_frame(player)
       storage_frame.destroy()
     end
     global["config-tmp"][player.name] = nil
-    if remote.interfaces.YARM and global.settings[player.name].YARM_old_expando then
+    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.name].YARM_old_expando then
       remote.call("YARM", "show_expando", player.index)
     end
     return
@@ -171,7 +171,7 @@ function gui_open_frame(player)
       }
     end
   end
-  if remote.interfaces.YARM then
+  if remote.interfaces.YARM and remote.interfaces.YARM.hide_expando then
     global.settings[player.name].YARM_old_expando = remote.call("YARM", "hide_expando", player.index)
   end
   -- Now we can build the GUI.
@@ -363,7 +363,7 @@ function gui_save_changes(player, name)
     if storage_frame then
       storage_frame.destroy()
     end
-    if remote.interfaces.YARM and global.settings[player.name].YARM_old_expando then
+    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.name].YARM_old_expando then
       remote.call("YARM", "show_expando", player.index)
     end
   end
