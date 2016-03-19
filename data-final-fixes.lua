@@ -3,6 +3,7 @@ require "lib"
 local types = {["mining-drill"]=true,["assembling-machine"]=true,lab=true,["rocket-silo"]=true, furnace=true, beacon=true}
 
 local metaitem = copyPrototype("deconstruction-item", "deconstruction-planner", "mi-meta")
+table.insert(metaitem.flags, "hidden")
 local metarecipe = copyPrototype("recipe", "deconstruction-planner", "mi-meta")
 metarecipe.ingredients = {}
 metarecipe.enabled = false

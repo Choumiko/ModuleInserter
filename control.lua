@@ -59,27 +59,29 @@ script.on_event(defines.events.on_marked_for_deconstruction, function(event)
     -- player has a upgrade planner and other has deconstruction planner,
     -- we can't determine it, so we have to discard deconstruction order.
     for _, p in pairs(game.players) do
-      local stack = p.cursor_stack
-      if stack.valid_for_read then
-        if stack.name == "upgrade-planner" then
-          if upgrade or deconstruction or module then
-            --debugDump("Upgrade planner used", true)
-            return
+      if p.connected then
+        local stack = p.cursor_stack
+        if stack and stack.valid_for_read then
+          if stack.name == "upgrade-planner" then
+            if upgrade or deconstruction or module then
+              --debugDump("Upgrade planner used", true)
+              return
+            end
+            upgrade = true
+          elseif stack.name == "deconstruction-planner" then
+            if upgrade or module then
+              --debugDump("Deconstruction/Module planner used", true)
+              return
+            end
+            deconstruction = true
+          elseif stack.name == "module-inserter" then
+            if upgrade or deconstruction then
+              --debugDump("Deconstruction/Upgrade planner used", true)
+              return
+            end
+            player = p
+            module = true
           end
-          upgrade = true
-        elseif stack.name == "deconstruction-planner" then
-          if upgrade or module then
-            --debugDump("Deconstruction/Module planner used", true)
-            return
-          end
-          deconstruction = true
-        elseif stack.name == "module-inserter" then
-          if upgrade or deconstruction then
-            --debugDump("Deconstruction/Upgrade planner used", true)
-            return
-          end
-          player = p
-          module = true
         end
       end
     end
