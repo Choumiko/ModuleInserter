@@ -320,6 +320,29 @@ local function on_load()
 -- set metatables, register conditional event handlers, local references to global
 end
 
+local function cleanup(show)
+  local count = 0
+  for tick, data in pairs(global.removeTicks) do
+    if tick < game.tick then
+      for i=#data,1,-1 do
+        local proxyData = data[i]
+        if proxyData.g and not proxyData.g.valid then
+          table.remove(data, i)
+          count = count + 1
+        end
+      end
+    end
+    if #global.removeTicks[tick] == 0 then
+      global.removeTicks[tick] = nil
+    end
+  end
+  
+  if show then
+    debugDump("Removed "..count.." entries", true)
+    log(count)
+  end
+end
+
 -- run once
 local function on_configuration_changed(data)
   if not data or not data.mod_changes then
@@ -340,8 +363,11 @@ local function on_configuration_changed(data)
         init_players()
         update_gui()
       end
-    --mod was updated
-    -- update/change gui for all players via game.players.gui ?
+      if oldVersion < "0.1.34" then
+        --cleanup(true)
+      end
+      --mod was updated
+      -- update/change gui for all players via game.players.gui ?
     end
   end
   getMetaItemData()
@@ -516,7 +542,7 @@ end)
 
 function debugDump(var, force)
   if false or force then
-    for i,player in ipairs(game.players) do
+    for i,player in pairs(game.players) do
       local msg
       if type(var) == "string" then
         msg = var
@@ -547,5 +573,8 @@ remote.add_interface("mi",
       init_global()
       init_players()
       update_gui()
-    end
+    end,
+    cleanup = function()
+      cleanup(true)
+    end,
   })
