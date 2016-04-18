@@ -20,47 +20,9 @@ GUI = {
     return new
   end,
 
-  create_or_update = function(trainInfo, player_index)
-    local player = game.players[player_index]
-    if player.valid then
-      local main = GUI.buildGui(player)
-      GUI.showSettingsButton(main)
-      if player.opened and player.opened.type == "locomotive" then
-        GUI.showTrainInfoWindow(main, trainInfo, player_index)
-      end
-      GUI.showTrainLinesWindow(main,trainInfo, player_index)
-    end
-  end,
-
-  buildGui = function (player)
-    GUI.destroyGui(player.gui[GUI.position][GUI.windows.root])
-    local stGui = GUI.add(player.gui[GUI.position], {type="frame", name="stGui", direction="vertical", style="outer_frame_style"})
-    return GUI.add(stGui, {type="table", name="rows", colspan=1})
-  end,
-
-  showSettingsButton = function(parent)
-    local gui = parent
-    if gui.toggleSTSettings ~= nil then
-      gui.toggleSTSettings.destroy()
-    end
-    GUI.addButton(gui, {name="toggleSTSettings", caption = {"text-st-settings"}})
-  end,
-
   destroyGui = function (guiA)
     if guiA ~= nil and guiA.valid then
       guiA.destroy()
-    end
-  end,
-
-  destroy = function(player_index)
-    local player = false
-    if type1(player_index) == "number" then
-      player = game.players[player_index]
-    else
-      player = player_index
-    end
-    if player.valid then
-      GUI.destroyGui(player.gui[GUI.position][GUI.windows.root])
     end
   end,
 
@@ -145,34 +107,34 @@ function gui_open_frame(player)
     if storage_frame then
       storage_frame.destroy()
     end
-    global["config-tmp"][player.name] = nil
-    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.name].YARM_old_expando then
+    global["config-tmp"][player.index] = nil
+    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.index].YARM_old_expando then
       remote.call("YARM", "show_expando", player.index)
     end
     return
   end
 
   -- If player config does not exist, we need to create it.
-  global["config"][player.name] = global["config"][player.name] or {}
+  global["config"][player.index] = global["config"][player.index] or {}
 
   -- Temporary config lives as long as the frame is open, so it has to be created
   -- every time the frame is opened.
-  global["config-tmp"][player.name] = {}
+  global["config-tmp"][player.index] = {}
 
   -- We need to copy all items from normal config to temporary config.
   local i = 0
   for i = 1, MAX_CONFIG_SIZE do
-    if i > #global["config"][player.name] then
-      global["config-tmp"][player.name][i] = { from = "", to = {} }
+    if i > #global["config"][player.index] then
+      global["config-tmp"][player.index][i] = { from = "", to = {} }
     else
-      global["config-tmp"][player.name][i] = {
-        from = global["config"][player.name][i].from,
-        to = util.table.deepcopy(global["config"][player.name][i].to)
+      global["config-tmp"][player.index][i] = {
+        from = global["config"][player.index][i].from,
+        to = util.table.deepcopy(global["config"][player.index][i].to)
       }
     end
   end
   if remote.interfaces.YARM and remote.interfaces.YARM.hide_expando then
-    global.settings[player.name].YARM_old_expando = remote.call("YARM", "hide_expando", player.index)
+    global.settings[player.index].YARM_old_expando = remote.call("YARM", "hide_expando", player.index)
   end
   -- Now we can build the GUI.
   frame = player.gui.left.add{
@@ -208,7 +170,7 @@ function gui_open_frame(player)
   }
 
   for i = 1, MAX_CONFIG_SIZE do
-    local style = global["config-tmp"][player.name][i].from or "style"
+    local style = global["config-tmp"][player.index][i].from or "style"
     style = style == "" and "style" or style
     ruleset_grid.add{
       type = "checkbox",
@@ -264,7 +226,7 @@ function gui_open_frame(player)
     type = "textfield",
     name = "module-inserter-save-as-text"
   }
-  saveText.text = global.config[player.name].loaded or ""
+  saveText.text = global.config[player.index].loaded or ""
 
   storage_frame = player.gui.left.add{
     type = "frame",
@@ -305,9 +267,9 @@ function gui_open_frame(player)
     name = "module-inserter-storage-grid"
   }
 
-  if global["storage"][player.name] then
+  if global["storage"][player.index] then
     i = 1
-    for key, _ in pairs(global["storage"][player.name]) do
+    for key, _ in pairs(global["storage"][player.index]) do
       storage_grid.add{
         type = "label",
         caption = key .. "        ",
@@ -336,24 +298,24 @@ function gui_save_changes(player, name)
   --   2. removing config-tmp
   --   3. closing the frame
 
-  if global["config-tmp"][player.name] then
+  if global["config-tmp"][player.index] then
     local i = 0
-    global["config"][player.name] = {}
+    global["config"][player.index] = {}
 
-    for i = 1, #global["config-tmp"][player.name] do
+    for i = 1, #global["config-tmp"][player.index] do
       -- Rule can be saved only if both "from" and "to" fields are set.
-      if global["config-tmp"][player.name][i].from == "" or global["config-tmp"][player.name][i].to == "" then
-        global["config"][player.name][i] = { from = "", to = "" }
+      if global["config-tmp"][player.index][i].from == "" or global["config-tmp"][player.index][i].to == "" then
+        global["config"][player.index][i] = { from = "", to = "" }
       else
-        global["config"][player.name][i] = {
-          from = global["config-tmp"][player.name][i].from,
-          to = util.table.deepcopy(global["config-tmp"][player.name][i].to)
+        global["config"][player.index][i] = {
+          from = global["config-tmp"][player.index][i].from,
+          to = util.table.deepcopy(global["config-tmp"][player.index][i].to)
         }
       end
     end
-    global["config-tmp"][player.name] = nil
+    global["config-tmp"][player.index] = nil
   end
-  global.config[player.name].loaded = name or nil
+  global.config[player.index].loaded = name or nil
   --saveVar(global, "saved")
   local frame = player.gui.left["module-inserter-config-frame"]
   local storage_frame = player.gui.left["module-inserter-storage-frame"]
@@ -363,7 +325,7 @@ function gui_save_changes(player, name)
     if storage_frame then
       storage_frame.destroy()
     end
-    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.name].YARM_old_expando then
+    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.index].YARM_old_expando then
       remote.call("YARM", "show_expando", player.index)
     end
   end
@@ -374,12 +336,12 @@ function gui_clear_all(player)
   local frame = player.gui.left["module-inserter-config-frame"]
   if not frame then return end
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
-  global.config[player.name].loaded = nil
+  global.config[player.index].loaded = nil
   local frame = player.gui.left["module-inserter-config-frame"]
   frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
 
   for i = 1, MAX_CONFIG_SIZE do
-    global["config-tmp"][player.name][i] = { from = "", to = {} }
+    global["config-tmp"][player.index][i] = { from = "", to = {} }
     ruleset_grid["module-inserter-from-" .. i].style = "mi-icon-style"
     gui_update_modules(player, i)
   end
@@ -401,12 +363,12 @@ end
 
 function gui_set_rule(player, type1, index)
   local frame = player.gui.left["module-inserter-config-frame"]
-  if not frame or not global["config-tmp"][player.name] then return end
+  if not frame or not global["config-tmp"][player.index] then return end
 
   local stack = player.cursor_stack
   if not stack.valid_for_read then
     stack = {type = "empty", name = ""}
-    global["config-tmp"][player.name][index].from = ""
+    global["config-tmp"][player.index][index].from = ""
     --gui_display_message(frame, false, "module-inserter-item-empty")
     --return
   end
@@ -416,8 +378,8 @@ function gui_set_rule(player, type1, index)
     local i = 0
     if type1 == "from" then
       opposite = "to"
-      for i = 1, #global["config-tmp"][player.name] do
-        if stack.type ~= "empty" and index ~= i and global["config-tmp"][player.name][i].from == stack.name then
+      for i = 1, #global["config-tmp"][player.index] do
+        if stack.type ~= "empty" and index ~= i and global["config-tmp"][player.index][i].from == stack.name then
           gui_display_message(frame, false, "module-inserter-item-already-set")
           return
         end
@@ -428,16 +390,16 @@ function gui_set_rule(player, type1, index)
       return
     end
   end
-  if stack.type == "empty" or stack.name ~= global["config-tmp"][player.name][index][type1] then
-    global["config-tmp"][player.name][index].to = {}
+  if stack.type == "empty" or stack.name ~= global["config-tmp"][player.index][index][type1] then
+    global["config-tmp"][player.index][index].to = {}
   end
-  global["config-tmp"][player.name][index][type1] = stack.name
+  global["config-tmp"][player.index][index][type1] = stack.name
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
-  local style = global["config-tmp"][player.name][index].from ~= "" and "mi-icon-"..global["config-tmp"][player.name][index].from or "mi-icon-style"
+  local style = global["config-tmp"][player.index][index].from ~= "" and "mi-icon-"..global["config-tmp"][player.index][index].from or "mi-icon-style"
   ruleset_grid["module-inserter-" .. type1 .. "-" .. index].style = style
   ruleset_grid["module-inserter-" .. type1 .. "-" .. index].state = false
   if type1 == "from" then
-    --local slots = global.nameToSlots[global["config-tmp"][player.name][index].from] or "-"
+    --local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or "-"
     --ruleset_grid["module-inserter-slots-" .. index].caption = slots
     gui_update_modules(player, index)
   end
@@ -445,20 +407,20 @@ end
 
 function gui_set_modules(player, index, slot)
   local frame = player.gui.left["module-inserter-config-frame"]
-  if not frame or not global["config-tmp"][player.name] then return end
+  if not frame or not global["config-tmp"][player.index] then return end
 
   local stack = player.cursor_stack
   if not stack.valid_for_read then
     --gui_display_message(frame, false, "module-inserter-item-empty")
     stack = {type = "empty", name = ""}
   end
-  if global["config-tmp"][player.name][index].from == "" then
+  if global["config-tmp"][player.index][index].from == "" then
     gui_display_message(frame, false, "module-inserter-item-no-entity")
     return
   end
 
   local type1 = "to"
-  local config = global["config-tmp"][player.name][index]
+  local config = global["config-tmp"][player.index][index]
   local modules = type(config[type1]) == "table" and config[type1] or {}
   local maxSlots = global.nameToSlots[config.from]
   if stack.type == "module" then
@@ -476,14 +438,14 @@ function gui_set_modules(player, index, slot)
     return
   end
   --debugDump(modules,true)
-  global["config-tmp"][player.name][index][type1] = modules
+  global["config-tmp"][player.index][index][type1] = modules
   gui_update_modules(player, index)
 end
 
 function gui_update_modules(player, index)
   local frame = player.gui.left["module-inserter-config-frame"]
-  local slots = global.nameToSlots[global["config-tmp"][player.name][index].from] or 1
-  local modules = global["config-tmp"][player.name][index].to
+  local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or 1
+  local modules = global["config-tmp"][player.index][index].to
   local flow = frame["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
   for i=#flow.children_names,1,-1 do
     flow[flow.children_names[i]].destroy()
@@ -505,7 +467,7 @@ function gui_update_modules(player, index)
 end
 
 function gui_store(player)
-  global["storage"][player.name] = global["storage"][player.name] or {}
+  global["storage"][player.index] = global["storage"][player.index] or {}
   local storage_frame = player.gui.left["module-inserter-storage-frame"]
   if not storage_frame then return end
   local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
@@ -516,22 +478,22 @@ function gui_store(player)
     gui_display_message(storage_frame, true, "module-inserter-storage-name-not-set")
     return
   end
-  if global["storage"][player.name][name] then
+  if global["storage"][player.index][name] then
     gui_display_message(storage_frame, true, "module-inserter-storage-name-in-use")
     return
   end
 
-  global["storage"][player.name][name] = {}
+  global["storage"][player.index][name] = {}
   local i = 0
-  for i = 1, #global["config-tmp"][player.name] do
-    global["storage"][player.name][name][i] = {
-      from = global["config-tmp"][player.name][i].from,
-      to = util.table.deepcopy(global["config-tmp"][player.name][i].to)
+  for i = 1, #global["config-tmp"][player.index] do
+    global["storage"][player.index][name][i] = {
+      from = global["config-tmp"][player.index][i].from,
+      to = util.table.deepcopy(global["config-tmp"][player.index][i].to)
     }
   end
 
   local storage_grid = storage_frame["module-inserter-storage-grid"]
-  local index = count_keys(global["storage"][player.name]) + 1
+  local index = count_keys(global["storage"][player.index]) + 1
   if index > MAX_STORAGE_SIZE + 1 then
     gui_display_message(storage_frame, true, "module-inserter-storage-too-long")
     return
@@ -562,7 +524,7 @@ function gui_store(player)
 end
 
 function gui_save_as(player)
-  global["storage"][player.name] = global["storage"][player.name] or {}
+  global["storage"][player.index] = global["storage"][player.index] or {}
   local storage_frame = player.gui.left["module-inserter-storage-frame"]
   local frame = player.gui.left["module-inserter-config-frame"]
 
@@ -575,18 +537,18 @@ function gui_save_as(player)
     gui_display_message(frame, true, "module-inserter-storage-name-not-set")
     return
   end
-  local index = count_keys(global["storage"][player.name]) + 1
-  if not global["storage"][player.name][name] and index > MAX_STORAGE_SIZE then
+  local index = count_keys(global["storage"][player.index]) + 1
+  if not global["storage"][player.index][name] and index > MAX_STORAGE_SIZE then
     gui_display_message(frame, false, "module-inserter-storage-too-long")
     return
   end
 
-  global["storage"][player.name][name] = {}
+  global["storage"][player.index][name] = {}
   local i = 0
-  for i = 1, #global["config-tmp"][player.name] do
-    global["storage"][player.name][name][i] = {
-      from = global["config-tmp"][player.name][i].from,
-      to = util.table.deepcopy(global["config-tmp"][player.name][i].to)
+  for i = 1, #global["config-tmp"][player.index] do
+    global["storage"][player.index][name][i] = {
+      from = global["config-tmp"][player.index][i].from,
+      to = util.table.deepcopy(global["config-tmp"][player.index][i].to)
     }
   end
   gui_save_changes(player, name)
@@ -602,21 +564,21 @@ function gui_restore(player, index)
   if not storage_entry then return end
 
   local name = string.match(storage_entry.caption, "^%s*(.-)%s*$")
-  if not global["storage"][player.name] or not global["storage"][player.name][name] then return end
+  if not global["storage"][player.index] or not global["storage"][player.index][name] then return end
 
-  global["config-tmp"][player.name] = {}
+  global["config-tmp"][player.index] = {}
   local i = 0
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
   for i = 1, MAX_CONFIG_SIZE do
-    if i > #global["storage"][player.name][name] then
-      global["config-tmp"][player.name][i] = { from = "", to = "" }
+    if i > #global["storage"][player.index][name] then
+      global["config-tmp"][player.index][i] = { from = "", to = "" }
     else
-      global["config-tmp"][player.name][i] = {
-        from = global["storage"][player.name][name][i].from,
-        to = util.table.deepcopy(global["storage"][player.name][name][i].to)
+      global["config-tmp"][player.index][i] = {
+        from = global["storage"][player.index][name][i].from,
+        to = util.table.deepcopy(global["storage"][player.index][name][i].to)
       }
     end
-    local style = global["config-tmp"][player.name][i].from ~= "" and "mi-icon-"..global["config-tmp"][player.name][i].from or "mi-icon-style"
+    local style = global["config-tmp"][player.index][i].from ~= "" and "mi-icon-"..global["config-tmp"][player.index][i].from or "mi-icon-style"
     ruleset_grid["module-inserter-from-" .. i].style = style
     ruleset_grid["module-inserter-from-" .. i].state = false
     gui_update_modules(player, i)
@@ -626,7 +588,7 @@ function gui_restore(player, index)
 end
 
 function gui_remove(player, index)
-  if not global["storage"][player.name] then return end
+  if not global["storage"][player.index] then return end
 
   local storage_frame = player.gui.left["module-inserter-storage-frame"]
   if not storage_frame then return end
@@ -642,6 +604,6 @@ function gui_remove(player, index)
   btn1.destroy()
   btn2.destroy()
 
-  global["storage"][player.name][name] = nil
+  global["storage"][player.index][name] = nil
   gui_display_message(storage_frame, true, "---")
 end
