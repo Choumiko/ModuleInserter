@@ -30,13 +30,15 @@ for t, _ in pairs(types) do
             {
               filename = prototype.icon,
               width = 32,
-              height = 32
+              height = 32,
+              scale=2
             },
             hovered_background =
             {
               filename = prototype.icon,
               width = 32,
-              height = 32
+              height = 32,
+              scale=2
             },
             checked_background =
             {
@@ -69,13 +71,15 @@ for k,prototype in pairs(data.raw["module"]) do
       {
         filename = prototype.icon,
         width = 32,
-        height = 32
+        height = 32,
+        scale=2
       },
       hovered_background =
       {
         filename = prototype.icon,
         width = 32,
-        height = 32
+        height = 32,
+        scale=2
       },
       checked_background =
       {
@@ -102,7 +106,6 @@ end
 for r,_ in pairs(tmpTable) do
   table.insert(metaProductivityRecipesR.effects, {type="unlock-recipe", recipe=r})
 end
-
 data:extend({metaProductivityRecipesR})
 
 data.raw["gui-style"].default["mi-icon-style"] =
@@ -118,7 +121,8 @@ data.raw["gui-style"].default["mi-icon-style"] =
       priority = "extra-high-no-scale",
       width = 32,
       height = 32,
-      x = 111
+      x = 111,
+      scale=2
     },
     hovered_background =
     {
@@ -126,7 +130,8 @@ data.raw["gui-style"].default["mi-icon-style"] =
       priority = "extra-high-no-scale",
       width = 32,
       height = 32,
-      x = 111
+      x = 111,
+      scale=2
     },
     clicked_background =
     {

@@ -1,4 +1,6 @@
-require "defines"
+if not defines then
+  require "defines"
+end
 require "util"
 
 MAX_CONFIG_SIZE = 6
@@ -15,17 +17,17 @@ typeToSlot = {}
 typeToSlot.lab = defines.inventory.lab_modules
 typeToSlot["assembling-machine"] = defines.inventory.assembling_machine_modules
 typeToSlot["mining-drill"] = defines.inventory.mining_drill_modules
-typeToSlot["furnace"] = defines.inventory.assembling_machine_modules
+typeToSlot["furnace"] = defines.inventory.assembling_machine_modules --TODO 0.13 change to furnace_modules
 typeToSlot["rocket-silo"] = defines.inventory.assembling_machine_modules
 typeToSlot["beacon"] = 1
 
 function subPos(p1,p2)
-  local p2 = p2 or {x=0,y=0}
+  p2 = p2 or {x=0,y=0}
   return {x=p1.x-p2.x, y=p1.y-p2.y}
 end
 
 function expandPos(pos, range)
-  local range = range or 0.5
+  range = range or 0.5
   if not pos or not pos.x then error("invalid pos",3) end
   return {{pos.x - range, pos.y - range}, {pos.x + range, pos.y + range}}
 end
@@ -108,8 +110,9 @@ script.on_event(defines.events.on_marked_for_deconstruction, function(event)
   local status, err = pcall(function()
     local entity = event.entity
     local deconstruction = false
+    local filtered_deconstruction = false
     local upgrade = false
-    local module = false
+    local module_inserter = false
     local player = nil
     -- Determine which player used upgrade planner.
     -- If more than one player has upgrade planner in their hand or one
@@ -120,30 +123,37 @@ script.on_event(defines.events.on_marked_for_deconstruction, function(event)
         local stack = p.cursor_stack
         if stack and stack.valid_for_read then
           if stack.name == "upgrade-planner" then
-            if upgrade or deconstruction or module then
+            if upgrade or deconstruction or module_inserter or filtered_deconstruction then
               --debugDump("Upgrade planner used", true)
               return
             end
             upgrade = true
           elseif stack.name == "deconstruction-planner" then
-            if upgrade or module then
+            if upgrade or module_inserter or filtered_deconstruction then
               --debugDump("Deconstruction/Module planner used", true)
               return
             end
             deconstruction = true
+          elseif stack.name == "filtered-deconstruction-planner" then
+            if upgrade or module_inserter or deconstruction then
+              return
+            end
+            filtered_deconstruction = true
           elseif stack.name == "module-inserter" then
-            if upgrade or deconstruction then
+            if upgrade or deconstruction or filtered_deconstruction then
               --debugDump("Deconstruction/Upgrade planner used", true)
               return
             end
             player = p
-            module = true
+            module_inserter = true
           end
         end
       end
     end
 
-    if not player then return end
+    if not player then
+      return
+    end
 
     if not global["config"][player.index] then
 
@@ -168,12 +178,12 @@ script.on_event(defines.events.on_marked_for_deconstruction, function(event)
       entity.cancel_deconstruction(entity.force)
       return
     end
-    
+
     local proxy = {name="module-inserter-proxy", count=1}
-    
+
     local can_insert_main = player.get_inventory(defines.inventory.player_main).can_insert(proxy)
     local can_insert_quick = player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy)
-    
+
     if can_insert_main or can_insert_quick then
       if entity.type == "assembling-machine" and not entity.recipe then
         player.print("Can't insert modules in assembler without recipe")
@@ -232,12 +242,11 @@ script.on_event(defines.events.on_marked_for_deconstruction, function(event)
           local ghost = entity.surface.create_entity(new_entity)
           global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
           --ghost.time_to_live = 60*30
-          local delTick = game.tick + ghost.time_to_live + 2
           add_ghost(key, {p=player,g=ghost})
           if can_insert_main then
             player.get_inventory(defines.inventory.player_main).insert(proxy)
           elseif can_insert_quick then
-            player.get_inventory(defines.inventory.player_quickbar).insert(proxy)          
+            player.get_inventory(defines.inventory.player_quickbar).insert(proxy)
           end
         end
       end
@@ -354,7 +363,7 @@ local function on_init()
 end
 
 local function on_load()
--- set metatables, register conditional event handlers, local references to global
+  -- set metatables, register conditional event handlers, local references to global
   if count_keys(global.removeTicks) == 0 then
     script.on_event(defines.events.on_tick, nil)
   else
@@ -416,16 +425,17 @@ local function on_configuration_changed(data)
         tmp["config-tmp"] = util.table.deepcopy(global["config-tmp"])
         tmp.storage  = util.table.deepcopy(global["storage"])
         tmp.settings = util.table.deepcopy(global.settings)
-        for key, data in pairs(tmp) do
-          global[key] = {}
+        for k, v in pairs(tmp) do
+          global[k] = {}
           for pi, player in pairs(game.players) do
-            if player.name and data[player.name] then
-              global[key][player.index] = data[player.name]
+            if player.name and v[player.name] then
+              global[k][player.index] = v[player.name]
             end
           end
         end
         cleanup(true)
       end
+      global.version = newVersion
       --mod was updated
       -- update/change gui for all players via game.players.gui ?
     end
@@ -452,6 +462,33 @@ script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_player_created, on_player_created)
 script.on_event(defines.events.on_force_created, on_force_created)
 script.on_event(defines.events.on_forces_merging, on_forces_merging)
+
+local function on_player_inactive(event)
+  local drop_items = {["upgrade-planner"]=true, ["deconstruction-planner"]=true,["filtered-deconstruction-planner"]=true,["module-inserter"]=true}
+
+  local p = game.players[event.player_index]
+  local stack = p.cursor_stack.valid_for_read and p.cursor_stack or false
+
+  --inactive player is holding an item
+  if stack and drop_items[stack.name] then
+    local can_insert_main = p.get_inventory(defines.inventory.player_main).can_insert(stack)
+    local can_insert_quick = p.get_inventory(defines.inventory.player_quickbar).can_insert(stack)
+    local inventory
+    if can_insert_quick then
+      inventory = p.get_inventory(defines.inventory.player_quickbar)
+    elseif can_insert_main then
+      inventory = p.get_inventory(defines.inventory.player_main)
+    end
+    if inventory then
+      inventory.insert(stack)
+      p.cursor_stack.clear()
+    end
+  end
+end
+
+if remote.interfaces.EventsPlus then
+  script.on_event(remote.call("EventsPlus", "getEvent", "on_player_inactive"), on_player_inactive)
+end
 
 function get_config_item(player, index, type1)
   if not global["config-tmp"][player.index]
@@ -521,7 +558,7 @@ script.on_event(defines.events.on_gui_click, function(event)
   local status, err = pcall(function()
     local element = event.element
     --debugDump(element.name, true)
-    local player = game.get_player(event.player_index)
+    local player = game.players[event.player_index]
 
     if element.name == "module-inserter-config-button" then
       gui_open_frame(player)
@@ -591,7 +628,7 @@ function debugDump(var, force)
 end
 
 function saveVar(var, name)
-  local var = var or global
+  var = var or global
   local n = name or ""
   game.write_file("module"..n..".lua", serpent.block(var, {name="glob"}))
 end

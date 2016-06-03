@@ -1,9 +1,9 @@
 {
   "name": "ModuleInserter",
-  "version": "0.1.34",
+  "version": "{{VERSION}}",
   "title": "Module Inserter",
   "author": "Choumiko",
   "homepage": "",
-  "dependencies": ["base >= 0.12.12"],
+  "dependencies": ["base >= 0.12.30"],
   "description": "Mass insert modules into machines with pocket bots"
 }

@@ -27,7 +27,7 @@ GUI = {
   end,
 
   add = function(parent, e, bind)
-    local type, name = e.type, e.name
+    local type = e.type
     if not e.style and (type == "button" or type == "label") then
       e.style = "st_"..type
     end
@@ -47,8 +47,8 @@ GUI = {
     return GUI.add(parent, e, bind)
   end,
 
-  addLabel = function(parent, e, bind)
-    local e = e
+  addLabel = function(parent, e_, bind)
+    local e = e_
     if type1(e) == "string" or type1(e) == "number" or (type1(e) == "table" and e[1]) then
       e = {caption=e}
     end
@@ -68,13 +68,13 @@ GUI = {
     end
   end,
 
-  sanitizeName = function(name)
-    local name = string.gsub(name, "_", " ")
+  sanitizeName = function(name_)
+    local name = string.gsub(name_, "_", " ")
     name = string.gsub(name, "^%s", "")
     name = string.gsub(name, "%s$", "")
     local pattern = "(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)"
     local element = "activeLine__"..name.."__".."something"
-    local t1,t2,t3,t4 = element:match(pattern)
+    local t1, t2, t3, _ = element:match(pattern)
     if t1 == "activeLine" and t2 == name and t3 == "something" then
       return name
     else
@@ -122,7 +122,6 @@ function gui_open_frame(player)
   global["config-tmp"][player.index] = {}
 
   -- We need to copy all items from normal config to temporary config.
-  local i = 0
   for i = 1, MAX_CONFIG_SIZE do
     if i > #global["config"][player.index] then
       global["config-tmp"][player.index][i] = { from = "", to = {} }
@@ -184,7 +183,7 @@ function gui_open_frame(player)
       caption = "  "
     }
 
-    local slots = ruleset_grid.add{
+    ruleset_grid.add{
       type = "flow",
       name = "module-inserter-slotflow-" .. i,
       direction = "horizontal"
@@ -268,7 +267,7 @@ function gui_open_frame(player)
   }
 
   if global["storage"][player.index] then
-    i = 1
+    local i = 1
     for key, _ in pairs(global["storage"][player.index]) do
       storage_grid.add{
         type = "label",
@@ -299,7 +298,6 @@ function gui_save_changes(player, name)
   --   3. closing the frame
 
   if global["config-tmp"][player.index] then
-    local i = 0
     global["config"][player.index] = {}
 
     for i = 1, #global["config-tmp"][player.index] do
@@ -332,12 +330,10 @@ function gui_save_changes(player, name)
 end
 
 function gui_clear_all(player)
-  local i = 0
   local frame = player.gui.left["module-inserter-config-frame"]
   if not frame then return end
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
   global.config[player.index].loaded = nil
-  local frame = player.gui.left["module-inserter-config-frame"]
   frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
 
   for i = 1, MAX_CONFIG_SIZE do
@@ -374,10 +370,7 @@ function gui_set_rule(player, type1, index)
   end
 
   if type1 ~= "to" then
-    local opposite = "from"
-    local i = 0
     if type1 == "from" then
-      opposite = "to"
       for i = 1, #global["config-tmp"][player.index] do
         if stack.type ~= "empty" and index ~= i and global["config-tmp"][player.index][i].from == stack.name then
           gui_display_message(frame, false, "module-inserter-item-already-set")
@@ -422,7 +415,7 @@ function gui_set_modules(player, index, slot)
   local type1 = "to"
   local config = global["config-tmp"][player.index][index]
   local modules = type(config[type1]) == "table" and config[type1] or {}
-  local maxSlots = global.nameToSlots[config.from]
+
   if stack.type == "module" then
     if game.entity_prototypes[config.from].type == "beacon" and game.item_prototypes[stack.name].module_effects and game.item_prototypes[stack.name].module_effects["productivity"] then
       if game.item_prototypes[stack.name].module_effects["productivity"] ~= 0 then
@@ -484,7 +477,6 @@ function gui_store(player)
   end
 
   global["storage"][player.index][name] = {}
-  local i = 0
   for i = 1, #global["config-tmp"][player.index] do
     global["storage"][player.index][name][i] = {
       from = global["config-tmp"][player.index][i].from,
@@ -544,7 +536,6 @@ function gui_save_as(player)
   end
 
   global["storage"][player.index][name] = {}
-  local i = 0
   for i = 1, #global["config-tmp"][player.index] do
     global["storage"][player.index][name][i] = {
       from = global["config-tmp"][player.index][i].from,
@@ -567,7 +558,6 @@ function gui_restore(player, index)
   if not global["storage"][player.index] or not global["storage"][player.index][name] then return end
 
   global["config-tmp"][player.index] = {}
-  local i = 0
   local ruleset_grid = frame["module-inserter-ruleset-grid"]
   for i = 1, MAX_CONFIG_SIZE do
     if i > #global["storage"][player.index][name] then
