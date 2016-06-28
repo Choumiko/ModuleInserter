@@ -9,7 +9,7 @@ data:extend({
 
 data.raw["gui-style"].default["module-inserter-small-button"] = {
   type = "button_style",
-  parent = "default",
+  parent = "button_style",
   font = "module-inserter-small-font"
 }
 
