@@ -104,7 +104,7 @@ function remove_ghost(key)
   end
 end
 
-script.on_event({defines.events.on_player_selected_area,defines.events.on_player_alt_selected_area}, function(event)
+function on_player_selected_area(event)
   --log(serpent.block(event, {comment=false}))
   local status, err = pcall(function()
     if not event.player_index then return end
@@ -205,7 +205,37 @@ script.on_event({defines.events.on_player_selected_area,defines.events.on_player
   if not status then
     debugDump(err, true)
   end
-end)
+end
+
+function on_player_alt_selected_area(event)
+  --log(serpent.block(event, {comment=false}))
+  local status, err = pcall(function()
+    if not event.player_index then return end
+    local player = game.players[event.player_index]
+
+    for _, entity in pairs(event.entities) do
+      if entity.type == "entity-ghost" and entity.ghost_name == "module-inserter-proxy" then
+        log(entity.ghost_name)
+
+        local key = entityKey(entity)
+        if global.entitiesToInsert[key] then
+          global.entitiesToInsert[key] = nil
+          if player.get_item_count("module-inserter-proxy") > 0 then
+            player.remove_item{name="module-inserter-proxy", count=1}
+          end
+          remove_ghost(key)
+          entity.destroy()
+        end
+      end
+    end
+  end)
+  if not status then
+    debugDump(err, true)
+  end
+end
+
+script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
+script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
 
 local function getMetaItemData()
   local metaitem = game.forces.player.recipes["mi-meta"].ingredients
@@ -385,8 +415,19 @@ local function on_configuration_changed(data)
         cleanup(true)
       end
       if oldVersion < "0.1.4" then
+        for _, ent in pairs(global.entitiesToInsert) do
+          if ent.ghost and ent.ghost.valid then
+            ent.ghost.destroy()
+          end
+        end
         global.entitiesToInsert = {}
         global.removeTicks = {}
+        for _, p in pairs(game.players) do
+          local c = p.get_item_count("module-inserter-proxy")
+          if c > 0 then
+            p.remove_item{name = "module-inserter-proxy", count = c}
+          end
+        end
         on_load()
       end
       global.version = newVersion

@@ -9,10 +9,14 @@ local mi_planner = {
   selection_color = { r = 0, g = 1, b = 0 },
   alt_selection_color = { r = 0, g = 0, b = 1 },
   selection_mode = {"matches-force", "buildable-type"},
-  alt_selection_mode = {"matches-force", "buildable-type"},
+  alt_selection_mode = {"matches-force", "any-entity"},
   selection_cursor_box_type = "copy",
   alt_selection_cursor_box_type = "copy"
 }
+
+--Error while loading item prototype "module-inserter" (selection-tool): Missing selection_mode in module-inserter item definition.
+--Valid values are: blueprint, deconstruct, cancel-deconstruct, items, trees, buildable-type, tiles, items-to-place, any-entity, any-tile, matches-force.
+
 
 local mi_proxy = copyPrototype("container","wooden-chest","module-inserter-proxy")
 mi_proxy.icon = "__ModuleInserter__/graphics/module-inserter-icon.png"
