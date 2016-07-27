@@ -8,9 +8,14 @@ Craft the module inserter item (it's where blueprints/deconstruction planner are
 
 Notes:
     Modules will first be taken from your inventory, if you don't have enough it will take them from the logistics network (for entities in logistics range only). The fake entity that is used to make the bots fly to the machine is inserted into your inventory. So it will only work if you have a personal roboport and a couple free slots in your inventory.
-    Marking an area with ghosts in it will remove the ghosts. So better wait until all ghosts are built
+
 ***
 ###Changelog
+0.2.1
+
+- check for module-inserter item when area is selected
+- unresearch the fake technology after console command to research all technologies is used
+
 0.1.4/0.2.0
 
 - shift selecting an area removes pending insertion jobs

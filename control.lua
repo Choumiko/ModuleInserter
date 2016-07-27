@@ -105,9 +105,8 @@ function remove_ghost(key)
 end
 
 function on_player_selected_area(event)
-  --log(serpent.block(event, {comment=false}))
   local status, err = pcall(function()
-    if not event.player_index then return end
+    if not event.player_index or event.item ~= "module-inserter" then return end
     local player = game.players[event.player_index]
     if not global["config"][player.index] then
 
@@ -177,6 +176,14 @@ function on_player_selected_area(event)
               direction = entity.direction,
               force = entity.force
             }
+            --game.player.surface.create_entity{name = "item-request-proxy", position = game.player.selected.position, force = game.player.force, target = game.player.selected, modules={{item="speed-module-3", count=2}}}
+            --            local module_proxy = {
+            --              name = "item-request-proxy",
+            --              position = game.player.selected.position,
+            --              force = game.player.force,
+            --              target = game.player.selected,
+            --              request_filters = {count=2, item="speed-module-3"}
+            --            }
 
             local key = entityKey(new_entity)
             if global.entitiesToInsert[key] then
@@ -208,9 +215,8 @@ function on_player_selected_area(event)
 end
 
 function on_player_alt_selected_area(event)
-  --log(serpent.block(event, {comment=false}))
   local status, err = pcall(function()
-    if not event.player_index then return end
+    if not event.player_index or event.item ~= "module-inserter" then return end
     local player = game.players[event.player_index]
 
     for _, entity in pairs(event.entities) do
@@ -578,6 +584,10 @@ script.on_event(defines.events.on_research_finished, function(event)
     for _, player in pairs(event.research.force.players) do
       gui_init(player, true)
     end
+  end
+  if event.research.name == 'mi-meta-productivityRecipes' then
+    event.research.force.technologies["mi-meta-productivityRecipes"].enabled = false
+    event.research.force.technologies["mi-meta-productivityRecipes"].researched = false
   end
 end)
 
