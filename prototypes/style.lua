@@ -14,7 +14,7 @@ data.raw["gui-style"].default["module-inserter-small-button"] = {
 }
 
 data.raw["gui-style"].default["module-inserter-button"] =
-{
+  {
     type = "button_style",
     parent = "button_style",
     width = 33,
@@ -26,37 +26,37 @@ data.raw["gui-style"].default["module-inserter-button"] =
     font = "module-inserter-small-font",
     default_graphical_set =
     {
-        type = "monolith",
-        monolith_image =
-        {
-            filename = "__ModuleInserter__/graphics/gui.png",
-            priority = "extra-high-no-scale",
-            width = 32,
-            height = 32,
-            x = 64
-        }
+      type = "monolith",
+      monolith_image =
+      {
+        filename = "__ModuleInserter__/graphics/gui.png",
+        priority = "extra-high-no-scale",
+        width = 32,
+        height = 32,
+        x = 64
+      }
     },
     hovered_graphical_set =
     {
-        type = "monolith",
-        monolith_image =
-        {
-            filename = "__ModuleInserter__/graphics/gui.png",
-            priority = "extra-high-no-scale",
-            width = 32,
-            height = 32,
-            x = 96
-        }
+      type = "monolith",
+      monolith_image =
+      {
+        filename = "__ModuleInserter__/graphics/gui.png",
+        priority = "extra-high-no-scale",
+        width = 32,
+        height = 32,
+        x = 96
+      }
     },
     clicked_graphical_set =
     {
-        type = "monolith",
-        monolith_image =
-        {
-            filename = "__ModuleInserter__/graphics/gui.png",
-            width = 32,
-            height = 32,
-            x = 96
-        }
+      type = "monolith",
+      monolith_image =
+      {
+        filename = "__ModuleInserter__/graphics/gui.png",
+        width = 32,
+        height = 32,
+        x = 96
+      }
     }
-}
+  }
