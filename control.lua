@@ -177,13 +177,13 @@ function on_player_selected_area(event)
               force = entity.force
             }
             --game.player.surface.create_entity{name = "item-request-proxy", position = game.player.selected.position, force = game.player.force, target = game.player.selected, modules={{item="speed-module-3", count=2}}}
-            --            local module_proxy = {
-            --              name = "item-request-proxy",
-            --              position = game.player.selected.position,
-            --              force = game.player.force,
-            --              target = game.player.selected,
-            --              request_filters = {count=2, item="speed-module-3"}
-            --            }
+--                        local module_proxy = {
+--                          name = "item-request-proxy",
+--                          position = game.player.selected.position,
+--                          force = game.player.force,
+--                          target = game.player.selected,
+--                          request_filters = {count=2, item="speed-module-3"}
+--                        }
 
             local key = entityKey(new_entity)
             if global.entitiesToInsert[key] then
@@ -220,7 +220,10 @@ function on_player_alt_selected_area(event)
     local player = game.players[event.player_index]
 
     for _, entity in pairs(event.entities) do
-      if entity.type == "entity-ghost" and entity.ghost_name == "module-inserter-proxy" then
+      if entity.name == "item-request-proxy" then
+        entity.destroy()
+      end
+      if entity.valid and entity.type == "entity-ghost" and entity.ghost_name == "module-inserter-proxy" then
         log(entity.ghost_name)
 
         local key = entityKey(entity)

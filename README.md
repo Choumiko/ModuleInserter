@@ -14,7 +14,8 @@ Notes:
 0.2.1
 
 - check for module-inserter item when area is selected
-- unresearch the fake technology after console command to research all technologies is used
+- shift selecting an area also removes vanilla module requests
+- unresearch the fake technology when researched via console command
 
 0.1.4/0.2.0
 
