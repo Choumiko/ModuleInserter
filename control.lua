@@ -25,20 +25,10 @@ end
 
 function count_keys(hashmap)
   local result = 0
-  for _, __ in pairs(hashmap) do
+  for _, _ in pairs(hashmap) do
     result = result + 1
   end
   return result
-end
-
---/c game.player.print(serpent.dump(game.player.surface.find_logistic_network_by_position(game.player.position, game.player.force.name).find_cell_closest_to(game.player.position)))
-local function hasPocketBots(player)
-  local logisticCell = player.character.logistic_cell
-  local port = false
-  if logisticCell and logisticCell.transmitting and logisticCell.mobile then
-    port = logisticCell
-  end
-  return port
 end
 
 function on_tick(event)
@@ -128,7 +118,7 @@ function on_player_selected_area(event)
           local modules = util.table.deepcopy(config[index].to)
           local cTable = {}
           local valid_modules = true
-          for i, module in pairs(modules) do
+          for _, module in pairs(modules) do
             if module then
               if not cTable[module] then
                 cTable[module] = 1
@@ -234,10 +224,9 @@ script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_select
 local function getMetaItemData()
   local metaitem = game.forces.player.recipes["mi-meta"].ingredients
 
-  for i, ent in pairs(metaitem) do
+  for _, ent in pairs(metaitem) do
     global.nameToSlots[ent.name] = ent.amount
   end
-
 end
 
 local function remove_invalid_items()
@@ -280,7 +269,7 @@ end
 
 function update_gui()
   local status, err = pcall(function()
-    for i,player in pairs(game.players) do
+    for _, player in pairs(game.players) do
       if player.valid and player.gui.top["module-inserter-config-button"] then
         player.gui.top["module-inserter-config-button"].destroy()
       end
@@ -307,17 +296,17 @@ local function init_player(player)
 end
 
 local function init_players()
-  for i,player in pairs(game.players) do
+  for _, player in pairs(game.players) do
     init_player(player)
   end
 end
 
-local function init_force(force)
+local function init_force(_)
 --force specific
 end
 
 local function init_forces()
-  for i, force in pairs(game.forces) do
+  for _, force in pairs(game.forces) do
     init_force(force)
   end
 end
@@ -393,7 +382,7 @@ local function on_configuration_changed(data)
         tmp.settings = util.table.deepcopy(global.settings)
         for k, v in pairs(tmp) do
           global[k] = {}
-          for pi, player in pairs(game.players) do
+          for _, player in pairs(game.players) do
             if player.name and v[player.name] then
               global[k][player.index] = v[player.name]
             end
@@ -438,16 +427,12 @@ end
 local function on_force_created(event)
   init_force(event.force)
 end
-local function on_forces_merging(event)
-
-end
 
 script.on_init(on_init)
 script.on_load(on_load)
 script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_player_created, on_player_created)
 script.on_event(defines.events.on_force_created, on_force_created)
-script.on_event(defines.events.on_forces_merging, on_forces_merging)
 
 script.on_event(defines.events.on_robot_built_entity, function(event)
   local status, err = pcall(function()
@@ -463,7 +448,7 @@ script.on_event(defines.events.on_robot_built_entity, function(event)
         local contents = inventory.get_contents()
         -- remove all modules first
         for k, v in pairs(contents) do
-          for i=1,v do
+          for _ = 1, v do
             if player.can_insert{name=k,count=1} then
               inventory.remove{name=k, count=1}
               player.insert{name=k, count=1}
@@ -472,7 +457,7 @@ script.on_event(defines.events.on_robot_built_entity, function(event)
         end
         if type(modules) == "table" then
           local logisticsNetwork = origEntity.surface.find_logistic_network_by_position(origEntity.position, origEntity.force.name)
-          for i,module in pairs(modules) do
+          for _, module in pairs(modules) do
             if module then
               if inventory.can_insert{name = module, count = 1} then
                 if player.get_item_count(module) > 0 then
@@ -517,7 +502,7 @@ script.on_event(defines.events.on_gui_click, function(event)
     elseif element.name == "module-inserter-debug" then
       saveVar(global,"debugButton")
       local c = 0
-      for _,k in pairs(global.entitiesToInsert) do
+      for _, _ in pairs(global.entitiesToInsert) do
         c = c+1
       end
       debugDump("#Entities "..c,true)
@@ -564,7 +549,7 @@ end)
 
 function debugDump(var, force)
   if false or force then
-    for i,player in pairs(game.players) do
+    for _, player in pairs(game.players) do
       local msg
       if type(var) == "string" then
         msg = var
