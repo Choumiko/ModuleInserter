@@ -11,6 +11,10 @@ Notes:
 
 ***
 ###Changelog
+0.2.2
+
+- requires Factorio 0.13.12
+
 0.2.1
 
 - check for module-inserter item when area is selected

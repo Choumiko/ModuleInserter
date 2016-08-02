@@ -1,92 +1,3 @@
-GUI = {
-  styleprefix = "st_",
-
-  defaultStyles = {
-    label = "label",
-    button = "button",
-    checkbox = "checkbox"
-  },
-
-  windows = {
-    root = "stGui",
-    settings = {"settings"},
-    trainInfo = {"trainInfo"}},
-
-  position = "left",
-
-  new = function(index, player)
-    local new = {}
-    setmetatable(new, {__index=GUI})
-    return new
-  end,
-
-  destroyGui = function (guiA)
-    if guiA ~= nil and guiA.valid then
-      guiA.destroy()
-    end
-  end,
-
-  add = function(parent, e, bind)
-    local type = e.type
-    if not e.style and (type == "button" or type == "label") then
-      e.style = "st_"..type
-    end
-    if bind then
-      if type == "checkbox" then
-        e.state = global[bind]
-      end
-    end
-    if type == "checkbox" and not (e.state == true or e.state == false) then
-      e.state = false
-    end
-    return parent.add(e)
-  end,
-
-  addButton = function(parent, e, bind)
-    e.type="button"
-    return GUI.add(parent, e, bind)
-  end,
-
-  addLabel = function(parent, e_, bind)
-    local e = e_
-    if type1(e) == "string" or type1(e) == "number" or (type1(e) == "table" and e[1]) then
-      e = {caption=e}
-    end
-    e.type="label"
-    return GUI.add(parent,e,bind)
-  end,
-
-  addTextfield = function(parent, e, bind)
-    e.type="textfield"
-    return GUI.add(parent, e, bind)
-  end,
-
-  addPlaceHolder = function(parent, count)
-    local c = count or 1
-    for i=1,c do
-      GUI.add(parent, {type="label", caption=""})
-    end
-  end,
-
-  sanitizeName = function(name_)
-    local name = string.gsub(name_, "_", " ")
-    name = string.gsub(name, "^%s", "")
-    name = string.gsub(name, "%s$", "")
-    local pattern = "(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)"
-    local element = "activeLine__"..name.."__".."something"
-    local t1, t2, t3, _ = element:match(pattern)
-    if t1 == "activeLine" and t2 == name and t3 == "something" then
-      return name
-    else
-      return false
-    end
-  end,
-
-  sanitizeNumber = function(number, default)
-    return tonumber(number) or default
-  end
-}
-
 function gui_init(player, after_research)
   if not player.gui.top["module-inserter-config-button"]
     and (player.force.technologies["automated-construction"].researched or after_research) then
@@ -135,7 +46,7 @@ function gui_open_frame(player)
   if remote.interfaces.YARM and remote.interfaces.YARM.hide_expando then
     global.settings[player.index].YARM_old_expando = remote.call("YARM", "hide_expando", player.index)
   end
-  -- Now we can build the GUI.
+  -- Now we can build the GUI
   frame = player.gui.left.add{
     type = "frame",
     caption = {"module-inserter-config-frame-title"},

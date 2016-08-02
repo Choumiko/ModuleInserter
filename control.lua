@@ -8,26 +8,13 @@ require "gui"
 
 MOD_NAME = "ModuleInserter"
 
-types = {["mining-drill"]=true,["assembling-machine"]=true,lab=true, ["rocket-silo"] = true, furnace=true, beacon=true}
-
 typeToSlot = {}
 typeToSlot.lab = defines.inventory.lab_modules
 typeToSlot["assembling-machine"] = defines.inventory.assembling_machine_modules
 typeToSlot["mining-drill"] = defines.inventory.mining_drill_modules
-typeToSlot["furnace"] = defines.inventory.assembling_machine_modules --TODO 0.13 change to furnace_modules
+typeToSlot["furnace"] = defines.inventory.furnace_modules --TODO 0.13 change to furnace_modules
 typeToSlot["rocket-silo"] = defines.inventory.assembling_machine_modules
 typeToSlot["beacon"] = 1
-
-function subPos(p1,p2)
-  p2 = p2 or {x=0,y=0}
-  return {x=p1.x-p2.x, y=p1.y-p2.y}
-end
-
-function expandPos(pos, range)
-  range = range or 0.5
-  if not pos or not pos.x then error("invalid pos",3) end
-  return {{pos.x - range, pos.y - range}, {pos.x + range, pos.y + range}}
-end
 
 function entityKey(ent)
   if ent.position and ent.direction then
@@ -45,7 +32,7 @@ function count_keys(hashmap)
 end
 
 --/c game.player.print(serpent.dump(game.player.surface.find_logistic_network_by_position(game.player.position, game.player.force.name).find_cell_closest_to(game.player.position)))
-function hasPocketBots(player)
+local function hasPocketBots(player)
   local logisticCell = player.character.logistic_cell
   local port = false
   if logisticCell and logisticCell.transmitting and logisticCell.mobile then
@@ -156,17 +143,15 @@ function on_player_selected_area(event)
                   player.print("Can't insert "..module.." in "..entity.name)
                   valid_modules = false
                 end
-                if global.productivityAllowed and entity.type == "assembling-machine" then
-                  if entity.recipe and not global.productivityAllowed[entity.recipe.name] == true then
-                    player.print("Can't use "..module.." with recipe: " .. entity.recipe.name)
-                    valid_modules = false
-                  end
+                if entity.type == "assembling-machine" and entity.recipe and next(prototype.limitations) and not prototype.limitations[entity.recipe] then
+                  player.print({"", "Can't use ", module.localised_name, " with recipe: ", entity.recipe.localised_name})
+                  valid_modules = false
                 end
               end
             end
           end
-          local inventory = entity.get_inventory(typeToSlot[entity.type])
-          local contents = inventory.get_contents()
+
+          local contents = entity.get_inventory(typeToSlot[entity.type]).get_contents()
           if valid_modules and not util.table.compare(cTable,contents) then
             -- proxy entity that the robots fly to
             local new_entity = {
@@ -177,13 +162,13 @@ function on_player_selected_area(event)
               force = entity.force
             }
             --game.player.surface.create_entity{name = "item-request-proxy", position = game.player.selected.position, force = game.player.force, target = game.player.selected, modules={{item="speed-module-3", count=2}}}
---                        local module_proxy = {
---                          name = "item-request-proxy",
---                          position = game.player.selected.position,
---                          force = game.player.force,
---                          target = game.player.selected,
---                          request_filters = {count=2, item="speed-module-3"}
---                        }
+            --                        local module_proxy = {
+            --                          name = "item-request-proxy",
+            --                          position = game.player.selected.position,
+            --                          force = game.player.force,
+            --                          target = game.player.selected,
+            --                          request_filters = {count=2, item="speed-module-3"}
+            --                        }
 
             local key = entityKey(new_entity)
             if global.entitiesToInsert[key] then
@@ -253,12 +238,6 @@ local function getMetaItemData()
     global.nameToSlots[ent.name] = ent.amount
   end
 
-  game.forces.player.technologies["mi-meta-productivityRecipes"].reload()
-  productivityRecipes = game.forces.player.technologies["mi-meta-productivityRecipes"].effects
-  global.productivityAllowed = #productivityRecipes > 0 and global.productivityAllowed or false
-  for _, recipe in pairs(productivityRecipes) do
-    global.productivityAllowed[recipe.recipe] = true
-  end
 end
 
 local function remove_invalid_items()
@@ -320,7 +299,6 @@ local function init_global()
   global["config-tmp"] = global["config-tmp"] or {}
   global["storage"] = global["storage"] or {}
   global.nameToSlots = global.nameToSlots or {}
-  global.productivityAllowed = global.productivityAllowed or {}
   global.settings = global.settings or {}
 end
 
@@ -439,6 +417,10 @@ local function on_configuration_changed(data)
         end
         on_load()
       end
+      
+      if oldVersion < "0.2.2" then
+        global.productivityAllowed = nil
+      end
       global.version = newVersion
       --mod was updated
       -- update/change gui for all players via game.players.gui ?
@@ -466,17 +448,6 @@ script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_player_created, on_player_created)
 script.on_event(defines.events.on_force_created, on_force_created)
 script.on_event(defines.events.on_forces_merging, on_forces_merging)
-
-function get_config_item(player, index, type1)
-  if not global["config-tmp"][player.index]
-    or index > #global["config-tmp"][player.index]
-    or global["config-tmp"][player.index][index][type1] == "" or type(global["config-tmp"][player.index][index][type1]) == "table" then
-
-    return {"upgrade-planner-item-not-set"}
-
-  end
-  return game.item_prototypes[global["config-tmp"][player.index][index][type1]].localised_name
-end
 
 script.on_event(defines.events.on_robot_built_entity, function(event)
   local status, err = pcall(function()
@@ -588,10 +559,7 @@ script.on_event(defines.events.on_research_finished, function(event)
       gui_init(player, true)
     end
   end
-  if event.research.name == 'mi-meta-productivityRecipes' then
-    event.research.force.technologies["mi-meta-productivityRecipes"].enabled = false
-    event.research.force.technologies["mi-meta-productivityRecipes"].researched = false
-  end
+
 end)
 
 function debugDump(var, force)
@@ -619,10 +587,7 @@ remote.add_interface("mi",
     saveVar = function(name)
       saveVar(global, name)
     end,
-    limits = function()
-      debugDump(productivityAllowed,true)
-      debugDump(productivityRecipes,true)
-    end,
+   
     init = function()
       init_global()
       init_players()

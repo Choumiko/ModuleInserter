@@ -5,6 +5,6 @@
   "title": "Module Inserter",
   "author": "Choumiko",
   "homepage": "",
-  "dependencies": ["base >= 0.13.0"],
+  "dependencies": ["base >= 0.13.12"],
   "description": "Mass insert modules into machines with pocket bots"
 }

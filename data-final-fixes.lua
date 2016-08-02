@@ -9,13 +9,6 @@ metarecipe.ingredients = {}
 metarecipe.enabled = false
 metarecipe.hidden = true
 
-local metaProductivityRecipesR = copyPrototype("technology", "automated-construction", "mi-meta-productivityRecipes")
-metaProductivityRecipesR.ingredients = {}
-metaProductivityRecipesR.enabled = false
-metaProductivityRecipesR.hidden = true
-metaProductivityRecipesR.effects = {}
-
-
 for t, _ in pairs(types) do
   for _, ent in pairs(data.raw[t]) do
     if type(ent.module_specification) == "table" and type(ent.module_specification.module_slots) == "number" then
@@ -60,8 +53,6 @@ for t, _ in pairs(types) do
 end
 data:extend({metaitem, metarecipe})
 
-local tmpTable = {}
-
 for k,prototype in pairs(data.raw["module"]) do
   local style =
     {
@@ -94,19 +85,8 @@ for k,prototype in pairs(data.raw["module"]) do
         height = 32
       }
     }
-  -- get allowed recipes for module
-  if prototype.limitation and type(prototype.limitation) == "table" then
-    for _, recipe in pairs(prototype.limitation) do
-      tmpTable[recipe] = true
-    end
-  end
   data.raw["gui-style"].default["mi-icon-"..prototype.name] = style
 end
-
-for r,_ in pairs(tmpTable) do
-  table.insert(metaProductivityRecipesR.effects, {type="unlock-recipe", recipe=r})
-end
-data:extend({metaProductivityRecipesR})
 
 data.raw["gui-style"].default["mi-icon-style"] =
   {
