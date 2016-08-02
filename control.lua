@@ -133,8 +133,8 @@ function on_player_selected_area(event)
                   player.print("Can't insert "..module.." in "..entity.name)
                   valid_modules = false
                 end
-                if entity.type == "assembling-machine" and entity.recipe and next(prototype.limitations) and not prototype.limitations[entity.recipe] then
-                  player.print({"", "Can't use ", module.localised_name, " with recipe: ", entity.recipe.localised_name})
+                if entity.type == "assembling-machine" and entity.recipe and next(prototype.limitations) and not prototype.limitations[entity.recipe.name] then
+                  player.print({"", "Can't use ", prototype.localised_name, " with recipe: ", entity.recipe.localised_name})
                   valid_modules = false
                 end
               end
