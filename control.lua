@@ -157,7 +157,7 @@ function on_player_selected_area(event)
             --                          position = game.player.selected.position,
             --                          force = game.player.force,
             --                          target = game.player.selected,
-            --                          request_filters = {count=2, item="speed-module-3"}
+            --                          request_filters = {count=2, item="productivity-module-3"}
             --                        }
 
             local key = entityKey(new_entity)
@@ -544,7 +544,6 @@ script.on_event(defines.events.on_research_finished, function(event)
       gui_init(player, true)
     end
   end
-
 end)
 
 function debugDump(var, force)
