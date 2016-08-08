@@ -14,6 +14,8 @@ Notes:
 0.2.2
 
 - requires Factorio 0.13.12
+- fixed that using /c game.player.force.research_all_technologies would disable recipes. If you have an affected save, use /c game.player.force.reset_recipes()
+- removed the fake technology
 
 0.2.1
 
