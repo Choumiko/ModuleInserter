@@ -1,6 +1,6 @@
 require "lib"
 
-local types = {["mining-drill"]=true,["assembling-machine"]=true,lab=true,["rocket-silo"]=true, furnace=true, beacon=true}
+local types = {["mining-drill"] = true, ["assembling-machine"] = true, lab = true, ["rocket-silo"] = true, furnace = true, beacon = true}
 
 local metaitem = copyPrototype("deconstruction-item", "deconstruction-planner", "mi-meta")
 table.insert(metaitem.flags, "hidden")
@@ -8,6 +8,22 @@ local metarecipe = copyPrototype("recipe", "deconstruction-planner", "mi-meta")
 metarecipe.ingredients = {}
 metarecipe.enabled = false
 metarecipe.hidden = true
+
+local function checkProductivity()
+  for name, beacon in pairs(data.raw.beacon) do
+    for _, effect in pairs(beacon.allowed_effects) do
+      if effect == "productivity" then
+        return true
+      end
+    end
+  end
+end
+
+if checkProductivity() then
+  local metaBeacon = copyPrototype("selection-tool","module-inserter","module-inserter-beacon")
+  table.insert(metaBeacon.flags, "hidden")
+  data:extend({metaBeacon})
+end
 
 for t, _ in pairs(types) do
   for _, ent in pairs(data.raw[t]) do
@@ -53,7 +69,7 @@ for t, _ in pairs(types) do
 end
 data:extend({metaitem, metarecipe})
 
-for k,prototype in pairs(data.raw["module"]) do
+for k, prototype in pairs(data.raw["module"]) do
   local style =
     {
       type = "checkbox_style",

@@ -12,7 +12,7 @@ typeToSlot = {}
 typeToSlot.lab = defines.inventory.lab_modules
 typeToSlot["assembling-machine"] = defines.inventory.assembling_machine_modules
 typeToSlot["mining-drill"] = defines.inventory.mining_drill_modules
-typeToSlot["furnace"] = defines.inventory.furnace_modules --TODO 0.13 change to furnace_modules
+typeToSlot["furnace"] = defines.inventory.furnace_modules
 typeToSlot["rocket-silo"] = defines.inventory.assembling_machine_modules
 typeToSlot["beacon"] = 1
 
@@ -86,9 +86,6 @@ function on_player_selected_area(event)
     if not event.player_index or event.item ~= "module-inserter" then return end
     local player = game.players[event.player_index]
     if not global["config"][player.index] then
-
-      -- Config for this player does not exist yet, so we have nothing to do.
-      -- We can create it now for later usage.
       global["config"][player.index] = {}
       return
     end
@@ -126,11 +123,11 @@ function on_player_selected_area(event)
                 cTable[module] = cTable[module] + 1
               end
             end
-            local prototype = game.item_prototypes[module]
-            if module and prototype.module_effects and prototype.module_effects["productivity"] then
+            local prototype = module and game.item_prototypes[module] or false
+            if prototype and prototype.module_effects and prototype.module_effects["productivity"] then
               if prototype.module_effects["productivity"] ~= 0 then
-                if entity.type == "beacon" then
-                  player.print("Can't insert "..module.." in "..entity.name)
+                if entity.type == "beacon" and not game.item_prototypes["module-inserter-beacon"] then
+                  player.print({"", "Can't insert ", prototype.localised_name, " in ", entity.localised_name})
                   valid_modules = false
                 end
                 if entity.type == "assembling-machine" and entity.recipe and next(prototype.limitations) and not prototype.limitations[entity.recipe.name] then

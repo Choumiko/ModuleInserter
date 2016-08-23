@@ -328,8 +328,9 @@ function gui_set_modules(player, index, slot)
   local modules = type(config[type1]) == "table" and config[type1] or {}
 
   if stack.type == "module" then
-    if game.entity_prototypes[config.from].type == "beacon" and game.item_prototypes[stack.name].module_effects and game.item_prototypes[stack.name].module_effects["productivity"] then
-      if game.item_prototypes[stack.name].module_effects["productivity"] ~= 0 then
+    local itemEffects = game.item_prototypes[stack.name].module_effects
+    if game.entity_prototypes[config.from].type == "beacon" and itemEffects and itemEffects.productivity then
+      if not game.item_prototypes["module-inserter-beacon"] and itemEffects.productivity ~= 0 then
         gui_display_message(frame,false,"module-inserter-no-productivity-beacon")
         return
       end
