@@ -11,6 +11,10 @@ Notes:
 
 ***
 ###Changelog
+1.0.0
+
+- version for Factorio 0.14.x
+
 0.2.3
 
 - allow productivity modules in beacons if the prototype supports it
