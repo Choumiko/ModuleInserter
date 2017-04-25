@@ -2,13 +2,6 @@ require "lib"
 
 local types = {["mining-drill"] = true, ["assembling-machine"] = true, lab = true, ["rocket-silo"] = true, furnace = true, beacon = true}
 
-local metaitem = copyPrototype("deconstruction-item", "deconstruction-planner", "mi-meta")
-table.insert(metaitem.flags, "hidden")
-local metarecipe = copyPrototype("recipe", "wood", "mi-meta")
-metarecipe.ingredients = {}
-metarecipe.enabled = false
-metarecipe.hidden = true
-
 local function checkProductivity()
   for name, beacon in pairs(data.raw.beacon) do
     for _, effect in pairs(beacon.allowed_effects) do
@@ -29,7 +22,6 @@ for t, _ in pairs(types) do
   for _, ent in pairs(data.raw[t]) do
     if type(ent.module_specification) == "table" and type(ent.module_specification.module_slots) == "number" then
       if data.raw["item"][ent.name] then
-        table.insert(metarecipe.ingredients, {ent.name, ent.module_specification.module_slots})
         local prototype = data.raw["item"][ent.name]
         local style =
           {
@@ -67,7 +59,6 @@ for t, _ in pairs(types) do
     end
   end
 end
-data:extend({metaitem, metarecipe})
 
 for k, prototype in pairs(data.raw["module"]) do
   local style =

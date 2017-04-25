@@ -218,11 +218,13 @@ end
 script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
 script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
 
+--TODO get # of slots only when necessary
 local function getMetaItemData()
-  local metaitem = game.forces.player.recipes["mi-meta"].ingredients
-
-  for _, ent in pairs(metaitem) do
-    global.nameToSlots[ent.name] = ent.amount
+  global.nameToSlots = {}
+  for name, prototype in pairs(game.entity_prototypes) do
+    if prototype.module_inventory_size and prototype.module_inventory_size > 0 then
+      global.nameToSlots[name] = prototype.module_inventory_size
+    end
   end
 end
 
