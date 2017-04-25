@@ -4,7 +4,7 @@ local types = {["mining-drill"] = true, ["assembling-machine"] = true, lab = tru
 
 local metaitem = copyPrototype("deconstruction-item", "deconstruction-planner", "mi-meta")
 table.insert(metaitem.flags, "hidden")
-local metarecipe = copyPrototype("recipe", "deconstruction-planner", "mi-meta")
+local metarecipe = copyPrototype("recipe", "wood", "mi-meta")
 metarecipe.ingredients = {}
 metarecipe.enabled = false
 metarecipe.hidden = true

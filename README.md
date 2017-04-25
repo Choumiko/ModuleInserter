@@ -11,6 +11,11 @@ Notes:
 
 ***
 ###Changelog
+2.0.0
+
+- version for Factorio 0.15.x
+- ModuleInserter unlocks when researching construction robots
+
 1.0.0
 
 - version for Factorio 0.14.x

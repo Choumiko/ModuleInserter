@@ -1,4 +1,4 @@
 table.insert(
-  data.raw["technology"]["automated-construction"]["effects"],
+  data.raw["technology"]["construction-robotics"]["effects"],
   { type = "unlock-recipe", recipe = "module-inserter" }
 )
