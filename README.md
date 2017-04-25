@@ -11,6 +11,10 @@ Notes:
 
 ***
 ###Changelog
+2.0.1
+
+- fix error in migration file
+
 2.0.0
 
 - version for Factorio 0.15.x

@@ -43,3 +43,5 @@ install_mod:
 	then \
 		cp -R build/$(OUTPUT_NAME) factorio_mods ; \
 	fi;
+tag:
+	git tag -f $(VERSION_STRING)
