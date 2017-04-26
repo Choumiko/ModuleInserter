@@ -1,6 +1,6 @@
 function gui_init(player, after_research)
   if not player.gui.top["module-inserter-config-button"]
-    and (player.force.technologies["automated-construction"].researched or after_research) then
+    and (player.force.technologies["construction-robotics"].researched or after_research) then
     player.gui.top.add{
       type = "button",
       name = "module-inserter-config-button",

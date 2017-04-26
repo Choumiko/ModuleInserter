@@ -409,6 +409,9 @@ local function on_configuration_changed(data)
       if oldVersion < "0.2.2" then
         global.productivityAllowed = nil
       end
+      if oldVersion < "2.0.2" then
+        update_gui()
+      end
       global.version = newVersion
       --mod was updated
       -- update/change gui for all players via game.players.gui ?
@@ -538,7 +541,7 @@ script.on_event(defines.events.on_gui_click, function(event)
 end)
 
 script.on_event(defines.events.on_research_finished, function(event)
-  if event.research.name == 'automated-construction' then
+  if event.research.name == 'construction-robotics' then
     for _, player in pairs(event.research.force.players) do
       gui_init(player, true)
     end

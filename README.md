@@ -11,9 +11,13 @@ Notes:
 
 ***
 ###Changelog
+2.0.2
+
+ - fixed error in UI initialisation  
+ 
 2.0.1
 
-- fix error in migration file
+- fixed error in migration file
 
 2.0.0
 
