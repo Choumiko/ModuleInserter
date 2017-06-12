@@ -11,6 +11,10 @@ Notes:
 
 ***
 ###Changelog
+2.0.3
+
+ - fixed the gui for storing configurations being below the main gui 
+ 
 2.0.2
 
  - fixed error in UI initialisation  

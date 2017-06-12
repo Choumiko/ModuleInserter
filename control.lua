@@ -148,7 +148,8 @@ function on_player_selected_area(event)
               direction = entity.direction,
               force = entity.force
             }
-            --game.player.surface.create_entity{name = "item-request-proxy", position = game.player.selected.position, force = game.player.force, target = game.player.selected, modules={{item="speed-module-3", count=2}}}
+            --game.player.surface.create_entity{name = "item-request-proxy", position = game.player.selected.position,
+            -- force = game.player.force, target = game.player.selected, modules={{item="speed-module-3", count=2}}}
             --                        local module_proxy = {
             --                          name = "item-request-proxy",
             --                          position = game.player.selected.position,
@@ -266,11 +267,22 @@ local function remove_invalid_items()
   end
 end
 
-function update_gui()
+function update_gui(destroy)
   local status, err = pcall(function()
     for _, player in pairs(game.players) do
-      if player.valid and player.gui.top["module-inserter-config-button"] then
-        player.gui.top["module-inserter-config-button"].destroy()
+      if player.valid then
+        if destroy and player.gui.top["module-inserter-config-button"] then
+          player.gui.top["module-inserter-config-button"].destroy()
+        end
+        local frame = player.gui.left["module-inserter-config-frame"]
+        if frame and frame.valid then
+          frame.destroy()
+        end
+        local storage = player.gui.left["module-inserter-storage-frame"]
+        if storage and storage.valid then
+          storage.destroy()
+        end
+        gui_destroy(player)
       end
       gui_init(player)
     end
@@ -292,6 +304,7 @@ end
 
 local function init_player(player)
   global.settings[player.index] = global.settings[player.index] or {}
+  gui_init(player)
 end
 
 local function init_players()
@@ -366,12 +379,12 @@ local function on_configuration_changed(data)
       init_global()
       init_forces()
       init_players()
-      update_gui()
+      update_gui(true)
     else
       if oldVersion < "0.1.3" then
         init_global()
         init_players()
-        update_gui()
+        update_gui(true)
       end
       if oldVersion < "0.1.34" then
         local tmp = {}
@@ -405,11 +418,11 @@ local function on_configuration_changed(data)
         end
         on_load()
       end
-      
+
       if oldVersion < "0.2.2" then
         global.productivityAllowed = nil
       end
-      if oldVersion < "2.0.2" then
+      if oldVersion < "2.0.3" then
         update_gui()
       end
       global.version = newVersion
@@ -573,11 +586,11 @@ remote.add_interface("mi",
     saveVar = function(name)
       saveVar(global, name)
     end,
-   
+
     init = function()
       init_global()
       init_players()
-      update_gui()
+      update_gui(true)
     end,
     cleanup = function()
       cleanup(true)

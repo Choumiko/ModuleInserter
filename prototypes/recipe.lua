@@ -2,11 +2,9 @@ data:extend({
   {
     type = "recipe",
     name = "module-inserter",
-    energy_required = 1,
-    ingredients = {
-      { "advanced-circuit", 1 }
-    },
+    energy_required = 0.1,
+    ingredients = {},
     result = "module-inserter",
-    enabled = "false"
+    enabled = false
   }
 })
