@@ -12,7 +12,7 @@ GUI.get_or_create_left_frame = function(player)
     return GUI.get_left_frame(player) or player.gui.left.add{type = "flow", name = GUI.left, direction = "horizontal"}
 end
 
-function gui_init(player, after_research)
+function GUI.init(player, after_research)
     if not player.gui.top["module-inserter-config-button"]
         and (player.force.technologies["construction-robotics"].researched or after_research) then
         player.gui.top.add{
@@ -24,7 +24,7 @@ function gui_init(player, after_research)
     GUI.get_or_create_left_frame(player)
 end
 
-function gui_destroy(player)
+function GUI.destroy(player)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
@@ -41,11 +41,11 @@ function gui_destroy(player)
     end
 end
 
-function gui_open_frame(player)
+function GUI.open_frame(player)
     local left = GUI.get_or_create_left_frame(player)
     local frame = left["module-inserter-config-frame"]
     if frame then
-        gui_destroy(player)
+        GUI.destroy(player)
         return
     end
 
@@ -123,7 +123,7 @@ function gui_open_frame(player)
             name = "module-inserter-slotflow-" .. i,
             direction = "horizontal"
         }
-        gui_update_modules(player,i)
+        GUI.update_modules(player,i)
     end
 
     local button_grid = frame.add{
@@ -226,7 +226,7 @@ function gui_open_frame(player)
     end
 end
 
-function gui_save_changes(player, name)
+function GUI.save_changes(player, name)
     -- Saving changes consists in:
     --   1. copying config-tmp to config
     --   2. removing config-tmp
@@ -265,7 +265,7 @@ function gui_save_changes(player, name)
     end
 end
 
-function gui_clear_all(player)
+function GUI.clear_all(player)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
@@ -277,11 +277,11 @@ function gui_clear_all(player)
     for i = 1, MAX_CONFIG_SIZE do
         global["config-tmp"][player.index][i] = { from = "", to = {} }
         ruleset_grid["module-inserter-from-" .. i].style = "mi-icon-style"
-        gui_update_modules(player, i)
+        GUI.update_modules(player, i)
     end
 end
 
-function gui_display_message(frame, storage, message)
+function GUI.display_message(frame, storage, message)
     local label_name = "module-inserter-"
     if storage then label_name = label_name .. "storage-" end
     label_name = label_name .. "error-label"
@@ -295,7 +295,7 @@ function gui_display_message(frame, storage, message)
     error_label.caption = message
 end
 
-function gui_set_rule(player, type1, index)
+function GUI.set_rule(player, type1, index)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
@@ -305,7 +305,7 @@ function gui_set_rule(player, type1, index)
     if not stack.valid_for_read then
         stack = {type = "empty", name = ""}
         global["config-tmp"][player.index][index].from = ""
-        --gui_display_message(frame, false, "module-inserter-item-empty")
+        --GUI.display_message(frame, false, "module-inserter-item-empty")
         --return
     end
 
@@ -313,13 +313,13 @@ function gui_set_rule(player, type1, index)
         if type1 == "from" then
             for i = 1, #global["config-tmp"][player.index] do
                 if stack.type ~= "empty" and index ~= i and global["config-tmp"][player.index][i].from == stack.name then
-                    gui_display_message(frame, false, "module-inserter-item-already-set")
+                    GUI.display_message(frame, false, "module-inserter-item-already-set")
                     return
                 end
             end
         end
         if stack.type ~= "empty" and not global.nameToSlots[stack.name] then
-            gui_display_message(frame, false, "module-inserter-item-no-slots")
+            GUI.display_message(frame, false, "module-inserter-item-no-slots")
             return
         end
     end
@@ -334,11 +334,11 @@ function gui_set_rule(player, type1, index)
     if type1 == "from" then
         --local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or "-"
         --ruleset_grid["module-inserter-slots-" .. index].caption = slots
-        gui_update_modules(player, index)
+        GUI.update_modules(player, index)
     end
 end
 
-function gui_set_modules(player, index, slot)
+function GUI.set_modules(player, index, slot)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
@@ -346,11 +346,11 @@ function gui_set_modules(player, index, slot)
 
     local stack = player.cursor_stack
     if not stack.valid_for_read then
-        --gui_display_message(frame, false, "module-inserter-item-empty")
+        --GUI.display_message(frame, false, "module-inserter-item-empty")
         stack = {type = "empty", name = ""}
     end
     if global["config-tmp"][player.index][index].from == "" then
-        gui_display_message(frame, false, "module-inserter-item-no-entity")
+        GUI.display_message(frame, false, "module-inserter-item-no-entity")
         return
     end
 
@@ -362,7 +362,7 @@ function gui_set_modules(player, index, slot)
         local itemEffects = game.item_prototypes[stack.name].module_effects
         if game.entity_prototypes[config.from].type == "beacon" and itemEffects and itemEffects.productivity then
             if not game.item_prototypes["module-inserter-beacon"] and itemEffects.productivity ~= 0 then
-                gui_display_message(frame,false,"module-inserter-no-productivity-beacon")
+                GUI.display_message(frame,false,"module-inserter-no-productivity-beacon")
                 return
             end
         end
@@ -370,15 +370,15 @@ function gui_set_modules(player, index, slot)
     elseif stack.type == "empty" then
         modules[slot] = false
     else
-        gui_display_message(frame,false,"module-inserter-item-no-module")
+        GUI.display_message(frame,false,"module-inserter-item-no-module")
         return
     end
     --debugDump(modules,true)
     global["config-tmp"][player.index][index][type1] = modules
-    gui_update_modules(player, index)
+    GUI.update_modules(player, index)
 end
 
-function gui_update_modules(player, index)
+function GUI.update_modules(player, index)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
@@ -404,7 +404,7 @@ function gui_update_modules(player, index)
     end
 end
 
-function gui_store(player)
+function GUI.store(player)
     global["storage"][player.index] = global["storage"][player.index] or {}
     local left = GUI.get_left_frame(player)
     if not left then return end
@@ -415,11 +415,11 @@ function gui_store(player)
     name = string.match(name, "^%s*(.-)%s*$")
 
     if not name or name == "" then
-        gui_display_message(storage_frame, true, "module-inserter-storage-name-not-set")
+        GUI.display_message(storage_frame, true, "module-inserter-storage-name-not-set")
         return
     end
     if global["storage"][player.index][name] then
-        gui_display_message(storage_frame, true, "module-inserter-storage-name-in-use")
+        GUI.display_message(storage_frame, true, "module-inserter-storage-name-in-use")
         return
     end
 
@@ -434,7 +434,7 @@ function gui_store(player)
     local storage_grid = storage_frame["module-inserter-storage-grid"]
     local index = count_keys(global["storage"][player.index]) + 1
     if index > MAX_STORAGE_SIZE + 1 then
-        gui_display_message(storage_frame, true, "module-inserter-storage-too-long")
+        GUI.display_message(storage_frame, true, "module-inserter-storage-too-long")
         return
     end
 
@@ -457,12 +457,12 @@ function gui_store(player)
         name = "module-inserter-remove-" .. index,
         style = "module-inserter-small-button"
     }
-    gui_display_message(storage_frame, true, "---")
+    GUI.display_message(storage_frame, true, "---")
     textfield.text = ""
     --saveVar(global, "stored")
 end
 
-function gui_save_as(player)
+function GUI.save_as(player)
     global["storage"][player.index] = global["storage"][player.index] or {}
     local left = GUI.get_left_frame(player)
     if not left then return end
@@ -475,12 +475,12 @@ function gui_save_as(player)
     name = string.match(name, "^%s*(.-)%s*$")
 
     if not name or name == "" then
-        gui_display_message(frame, true, "module-inserter-storage-name-not-set")
+        GUI.display_message(frame, true, "module-inserter-storage-name-not-set")
         return
     end
     local index = count_keys(global["storage"][player.index]) + 1
     if not global["storage"][player.index][name] and index > MAX_STORAGE_SIZE then
-        gui_display_message(frame, false, "module-inserter-storage-too-long")
+        GUI.display_message(frame, false, "module-inserter-storage-too-long")
         return
     end
 
@@ -491,10 +491,10 @@ function gui_save_as(player)
             to = util.table.deepcopy(global["config-tmp"][player.index][i].to)
         }
     end
-    gui_save_changes(player, name)
+    GUI.save_changes(player, name)
 end
 
-function gui_restore(player, index)
+function GUI.restore(player, index)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
@@ -522,13 +522,13 @@ function gui_restore(player, index)
         local style = global["config-tmp"][player.index][i].from ~= "" and "mi-icon-"..global["config-tmp"][player.index][i].from or "mi-icon-style"
         ruleset_grid["module-inserter-from-" .. i].style = style
         ruleset_grid["module-inserter-from-" .. i].state = false
-        gui_update_modules(player, i)
+        GUI.update_modules(player, i)
     end
-    gui_display_message(storage_frame, true, "---")
-    gui_save_changes(player, name)
+    GUI.display_message(storage_frame, true, "---")
+    GUI.save_changes(player, name)
 end
 
-function gui_remove(player, index)
+function GUI.remove(player, index)
     if not global["storage"][player.index] then return end
     local left = GUI.get_left_frame(player)
     if not left then return end
@@ -547,7 +547,7 @@ function gui_remove(player, index)
     btn2.destroy()
 
     global["storage"][player.index][name] = nil
-    gui_display_message(storage_frame, true, "---")
+    GUI.display_message(storage_frame, true, "---")
 end
 
 return GUI

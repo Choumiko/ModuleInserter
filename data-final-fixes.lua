@@ -1,9 +1,9 @@
-require "lib"
+local copyPrototype = require "lib"
 
 local types = {["mining-drill"] = true, ["assembling-machine"] = true, lab = true, ["rocket-silo"] = true, furnace = true, beacon = true}
 
 local function checkProductivity()
-    for name, beacon in pairs(data.raw.beacon) do
+    for _, beacon in pairs(data.raw.beacon) do
         for _, effect in pairs(beacon.allowed_effects) do
             if effect == "productivity" then
                 return true
@@ -60,7 +60,7 @@ for t, _ in pairs(types) do
     end
 end
 
-for k, prototype in pairs(data.raw["module"]) do
+for _, prototype in pairs(data.raw["module"]) do
     local style =
         {
             type = "checkbox_style",

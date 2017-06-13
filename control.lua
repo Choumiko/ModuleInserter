@@ -1,14 +1,34 @@
 require "util"
 
-MAX_CONFIG_SIZE = 6
-MAX_STORAGE_SIZE = 12
-DEBUG = false
+MAX_CONFIG_SIZE = 6 --luacheck: allow defined top
+MAX_STORAGE_SIZE = 12 --luacheck: allow defined top
+DEBUG = false --luacheck: allow defined top
 
-require "gui"
+function debugDump(var, force) --luacheck: allow defined top
+    if false or force then
+        for _, player in pairs(game.players) do
+            local msg
+            if type(var) == "string" then
+                msg = var
+            else
+                msg = serpent.dump(var, {name="var", comment=false, sparse=false, sortkeys=true})
+            end
+            player.print(msg)
+        end
+    end
+end
 
-MOD_NAME = "ModuleInserter"
+function saveVar(var, name) --luacheck: allow defined top
+    var = var or global
+    local n = name or ""
+    game.write_file("module"..n..".lua", serpent.block(var, {name="glob"}))
+end
 
-typeToSlot = {}
+local GUI = require "gui"
+
+MOD_NAME = "ModuleInserter" --luacheck: allow defined top
+
+typeToSlot = {} --luacheck: allow defined top
 typeToSlot.lab = defines.inventory.lab_modules
 typeToSlot["assembling-machine"] = defines.inventory.assembling_machine_modules
 typeToSlot["mining-drill"] = defines.inventory.mining_drill_modules
@@ -16,14 +36,14 @@ typeToSlot["furnace"] = defines.inventory.furnace_modules
 typeToSlot["rocket-silo"] = defines.inventory.assembling_machine_modules
 typeToSlot["beacon"] = 1
 
-function entityKey(ent)
+local function entityKey(ent)
     if ent.position and ent.direction then
         return ent.position.x..":"..ent.position.y--..":"..ent.direction
     end
     return false
 end
 
-function count_keys(hashmap)
+function count_keys(hashmap) --luacheck: allow defined top
     local result = 0
     for _, _ in pairs(hashmap) do
         result = result + 1
@@ -31,7 +51,7 @@ function count_keys(hashmap)
     return result
 end
 
-function on_tick(event)
+local function on_tick(event)
     if global.removeTicks[event.tick] then
         local status, err = pcall(function()
             for key, g in pairs(global.removeTicks[event.tick]) do
@@ -56,13 +76,13 @@ function on_tick(event)
     end
 end
 
-function add_ghost(key, data, tick)
+local function add_ghost(key, data, tick)
     global.removeTicks[tick] = global.removeTicks[tick] or {}
     global.removeTicks[tick][key] = data
     script.on_event(defines.events.on_tick, on_tick)
 end
 
-function remove_ghost(key)
+local function remove_ghost(key)
     local toDelete = false
     for tick, t in pairs(global.removeTicks) do
         if t[key] then
@@ -81,7 +101,7 @@ function remove_ghost(key)
     end
 end
 
-function on_player_selected_area(event)
+local function on_player_selected_area(event)
     local status, err = pcall(function()
         if not event.player_index or event.item ~= "module-inserter" then return end
         local player = game.players[event.player_index]
@@ -187,7 +207,7 @@ function on_player_selected_area(event)
     end
 end
 
-function on_player_alt_selected_area(event)
+local function on_player_alt_selected_area(event)
     local status, err = pcall(function()
         if not event.player_index or event.item ~= "module-inserter" then return end
         local player = game.players[event.player_index]
@@ -267,7 +287,7 @@ local function remove_invalid_items()
     end
 end
 
-function update_gui(destroy)
+local function update_gui(destroy)
     local status, err = pcall(function()
         for _, player in pairs(game.players) do
             if player.valid then
@@ -282,9 +302,9 @@ function update_gui(destroy)
                 if storage and storage.valid then
                     storage.destroy()
                 end
-                gui_destroy(player)
+                GUI.destroy(player)
             end
-            gui_init(player)
+            GUI.init(player)
         end
     end)
     if not status then
@@ -304,7 +324,7 @@ end
 
 local function init_player(player)
     global.settings[player.index] = global.settings[player.index] or {}
-    gui_init(player)
+    GUI.init(player)
 end
 
 local function init_players()
@@ -509,11 +529,11 @@ script.on_event(defines.events.on_gui_click, function(event)
         local player = game.players[event.player_index]
 
         if element.name == "module-inserter-config-button" then
-            gui_open_frame(player)
+            GUI.open_frame(player)
         elseif element.name == "module-inserter-apply" then
-            gui_save_changes(player)
+            GUI.save_changes(player)
         elseif element.name == "module-inserter-clear-all" then
-            gui_clear_all(player)
+            GUI.clear_all(player)
         elseif element.name == "module-inserter-debug" then
             saveVar(global,"debugButton")
             local c = 0
@@ -528,22 +548,22 @@ script.on_event(defines.events.on_gui_click, function(event)
             debugDump("#config "..#global.config[player.index],true)
             debugDump("#Remove "..c,true)
         elseif element.name  == "module-inserter-storage-store" then
-            gui_store(player)
+            GUI.store(player)
         elseif element.name == "module-inserter-save-as" then
-            gui_save_as(player)
+            GUI.save_as(player)
         else
             event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
             local type, index, slot = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
             --debugDump({t=type,i=index,s=slot},true)
             if type and index then
                 if type == "from" then
-                    gui_set_rule(player, type, tonumber(index))
+                    GUI.set_rule(player, type, tonumber(index))
                 elseif type == "to" then
-                    gui_set_modules(player, tonumber(index), tonumber(slot))
+                    GUI.set_modules(player, tonumber(index), tonumber(slot))
                 elseif type == "restore" then
-                    gui_restore(player, tonumber(index))
+                    GUI.restore(player, tonumber(index))
                 elseif type == "remove" then
-                    gui_remove(player, tonumber(index))
+                    GUI.remove(player, tonumber(index))
                 end
             end
         end
@@ -556,30 +576,10 @@ end)
 script.on_event(defines.events.on_research_finished, function(event)
     if event.research.name == 'construction-robotics' then
         for _, player in pairs(event.research.force.players) do
-            gui_init(player, true)
+            GUI.init(player, true)
         end
     end
 end)
-
-function debugDump(var, force)
-    if false or force then
-        for _, player in pairs(game.players) do
-            local msg
-            if type(var) == "string" then
-                msg = var
-            else
-                msg = serpent.dump(var, {name="var", comment=false, sparse=false, sortkeys=true})
-            end
-            player.print(msg)
-        end
-    end
-end
-
-function saveVar(var, name)
-    var = var or global
-    local n = name or ""
-    game.write_file("module"..n..".lua", serpent.block(var, {name="glob"}))
-end
 
 remote.add_interface("mi",
     {
