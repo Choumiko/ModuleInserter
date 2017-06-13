@@ -1,17 +1,17 @@
 local mi_planner = {
-  type = "selection-tool",
-  name = "module-inserter",
-  icon = "__ModuleInserter__/graphics/module-inserter-icon.png",
-  flags = {"goes-to-quickbar"},
-  subgroup = "tool",
-  order = "c[automated-construction]-d[module-inserter]",
-  stack_size = 1,
-  selection_color = { r = 0, g = 1, b = 0 },
-  alt_selection_color = { r = 0, g = 0, b = 1 },
-  selection_mode = {"matches-force", "buildable-type"},
-  alt_selection_mode = {"matches-force", "any-entity"},
-  selection_cursor_box_type = "copy",
-  alt_selection_cursor_box_type = "copy"
+    type = "selection-tool",
+    name = "module-inserter",
+    icon = "__ModuleInserter__/graphics/module-inserter-icon.png",
+    flags = {"goes-to-quickbar"},
+    subgroup = "tool",
+    order = "c[automated-construction]-d[module-inserter]",
+    stack_size = 1,
+    selection_color = { r = 0, g = 1, b = 0 },
+    alt_selection_color = { r = 0, g = 0, b = 1 },
+    selection_mode = {"matches-force", "buildable-type"},
+    alt_selection_mode = {"matches-force", "any-entity"},
+    selection_cursor_box_type = "copy",
+    alt_selection_cursor_box_type = "copy"
 }
 
 --Error while loading item prototype "module-inserter" (selection-tool): Missing selection_mode in module-inserter item definition.
