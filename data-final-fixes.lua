@@ -23,33 +23,39 @@ for t, _ in pairs(types) do
         if type(ent.module_specification) == "table" and type(ent.module_specification.module_slots) == "number" then
             if data.raw["item"][ent.name] then
                 local prototype = data.raw["item"][ent.name]
+                local icon = prototype.icon or prototype.icons[1].icon
+                local tint = prototype.icons and prototype.icons[1].tint
                 local style =
                     {
                         type = "checkbox_style",
                         parent = "mi-icon-style",
                         default_background =
                         {
-                            filename = prototype.icon,
+                            filename = icon,
+                            tint = tint,
                             width = 32,
                             height = 32,
                             scale=2
                         },
                         hovered_background =
                         {
-                            filename = prototype.icon,
+                            filename = icon,
+                            tint = tint,
                             width = 32,
                             height = 32,
                             scale=2
                         },
                         checked_background =
                         {
-                            filename = prototype.icon,
+                            filename = icon,
+                            tint = tint,
                             width = 32,
                             height = 32
                         },
                         clicked_background =
                         {
-                            filename = prototype.icon,
+                            filename = icon,
+                            tint = tint,
                             width = 32,
                             height = 32
                         }

@@ -11,6 +11,10 @@ Notes:
 
 ***
 ###Changelog
+2.0.4
+
+ - fixed error when using mods that add tinted icons for assembling machines
+ 
 2.0.3
 
  - fixed the gui for storing configurations being below the main gui 
