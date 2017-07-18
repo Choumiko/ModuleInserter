@@ -21,8 +21,9 @@ end
 for t, _ in pairs(types) do
     for _, ent in pairs(data.raw[t]) do
         if type(ent.module_specification) == "table" and type(ent.module_specification.module_slots) == "number" then
-            if data.raw["item"][ent.name] then
-                local prototype = data.raw["item"][ent.name]
+            local item = data.raw["item"][ent.name]
+            if item then
+                local prototype = item
                 local icon = prototype.icon or prototype.icons[1].icon
                 local tint = prototype.icons and prototype.icons[1].tint
                 local style =

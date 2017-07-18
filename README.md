@@ -11,6 +11,11 @@ Notes:
 
 ***
 ###Changelog
+2.0.5
+
+ - fixed error with Omnimatter
+ - added tooltips for machines in gui
+
 2.0.4
 
  - fixed error when using mods that add tinted icons for assembling machines

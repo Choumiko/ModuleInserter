@@ -106,11 +106,14 @@ function GUI.open_frame(player)
     for i = 1, MAX_CONFIG_SIZE do
         local style = global["config-tmp"][player.index][i].from or "style"
         style = style == "" and "style" or style
+        local tooltip = (global["config-tmp"][player.index][i].from ~= "" and game.item_prototypes[global["config-tmp"][player.index][i].from])
+            and game.item_prototypes[global["config-tmp"][player.index][i].from].localised_name or ""
         ruleset_grid.add{
             type = "checkbox",
             name = "module-inserter-from-" .. i,
             style = "mi-icon-" ..style,
-            state = false
+            state = false,
+            tooltip = tooltip
         --caption = get_config_item(player, i, "from")
         }
         ruleset_grid.add{
@@ -329,7 +332,10 @@ function GUI.set_rule(player, type1, index)
     global["config-tmp"][player.index][index][type1] = stack.name
     local ruleset_grid = frame["module-inserter-ruleset-grid"]
     local style = global["config-tmp"][player.index][index].from ~= "" and "mi-icon-"..global["config-tmp"][player.index][index].from or "mi-icon-style"
+    local tooltip = (global["config-tmp"][player.index][index].from ~= "" and game.item_prototypes[global["config-tmp"][player.index][index].from])
+        and game.item_prototypes[global["config-tmp"][player.index][index].from].localised_name or ""
     ruleset_grid["module-inserter-" .. type1 .. "-" .. index].style = style
+    ruleset_grid["module-inserter-" .. type1 .. "-" .. index].tooltip = tooltip
     ruleset_grid["module-inserter-" .. type1 .. "-" .. index].state = false
     if type1 == "from" then
         --local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or "-"
