@@ -9,14 +9,14 @@ data:extend({
 
 data.raw["gui-style"].default["module-inserter-small-button"] = {
     type = "button_style",
-    parent = "button_style",
+    parent = "button",
     font = "module-inserter-small-font"
 }
 
 data.raw["gui-style"].default["module-inserter-button"] =
     {
         type = "button_style",
-        parent = "button_style",
+        parent = "button",
         width = 33,
         height = 33,
         top_padding = 6,

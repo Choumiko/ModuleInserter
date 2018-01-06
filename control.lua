@@ -15,7 +15,7 @@ function debugDump(var, force) --luacheck: allow defined top
             end
             player.print(msg)
         end
-    end
+end
 end
 
 function saveVar(var, name) --luacheck: allow defined top
@@ -129,12 +129,13 @@ local function on_player_selected_area(event)
             local can_insert_quick = player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy)
 
             if index and (can_insert_main or can_insert_quick) then
-                if entity.type == "assembling-machine" and not entity.recipe then
+                if entity.type == "assembling-machine" and not entity.get_recipe() then
                     player.print("Can't insert modules in assembler without recipe")
                 else
                     local modules = util.table.deepcopy(config[index].to)
                     local cTable = {}
                     local valid_modules = true
+                    local recipe = entity.get_recipe()
                     for _, module in pairs(modules) do
                         if module then
                             if not cTable[module] then
@@ -150,8 +151,8 @@ local function on_player_selected_area(event)
                                     player.print({"", "Can't insert ", prototype.localised_name, " in ", entity.localised_name})
                                     valid_modules = false
                                 end
-                                if entity.type == "assembling-machine" and entity.recipe and next(prototype.limitations) and not prototype.limitations[entity.recipe.name] then
-                                    player.print({"", "Can't use ", prototype.localised_name, " with recipe: ", entity.recipe.localised_name})
+                                if entity.type == "assembling-machine" and recipe and next(prototype.limitations) and not prototype.limitations[recipe.name] then
+                                    player.print({"", "Can't use ", prototype.localised_name, " with recipe: ", recipe.localised_name})
                                     valid_modules = false
                                 end
                             end
@@ -522,7 +523,7 @@ script.on_event(defines.events.on_robot_built_entity, function(event)
     end
 end)
 
-script.on_event(defines.events.on_gui_click, function(event)
+local function on_gui_click(event)
     local status, err = pcall(function()
         local element = event.element
         --debugDump(element.name, true)
@@ -571,7 +572,10 @@ script.on_event(defines.events.on_gui_click, function(event)
     if not status then
         debugDump(err, true)
     end
-end)
+end
+
+script.on_event(defines.events.on_gui_click, on_gui_click)
+script.on_event(defines.events.on_gui_checked_state_changed, on_gui_click)
 
 script.on_event(defines.events.on_research_finished, function(event)
     if event.research.name == 'construction-robotics' then

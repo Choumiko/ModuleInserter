@@ -85,7 +85,7 @@ function GUI.open_frame(player)
     error_label.style.minimal_width = 200
     local ruleset_grid = frame.add{
         type = "table",
-        colspan = 3,
+        column_count = 3,
         name = "module-inserter-ruleset-grid"
     }
     ruleset_grid.add{
@@ -131,7 +131,7 @@ function GUI.open_frame(player)
 
     local button_grid = frame.add{
         type = "table",
-        colspan = 3,
+        column_count = 3,
         name = "module-inserter-button-grid"
     }
     button_grid.add{
@@ -179,7 +179,7 @@ function GUI.open_frame(player)
     storage_frame_error_label.style.minimal_width = 200
     local storage_frame_buttons = storage_frame.add{
         type = "table",
-        colspan = 3,
+        column_count = 3,
         name = "module-inserter-storage-buttons"
     }
     storage_frame_buttons.add{
@@ -200,7 +200,7 @@ function GUI.open_frame(player)
     }
     local storage_grid = storage_frame.add{
         type = "table",
-        colspan = 3,
+        column_count = 3,
         name = "module-inserter-storage-grid"
     }
 

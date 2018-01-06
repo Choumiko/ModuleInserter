@@ -2,6 +2,7 @@ local mi_planner = {
     type = "selection-tool",
     name = "module-inserter",
     icon = "__ModuleInserter__/graphics/module-inserter-icon.png",
+    icon_size = 32,
     flags = {"goes-to-quickbar"},
     subgroup = "tool",
     order = "c[automated-construction]-d[module-inserter]",

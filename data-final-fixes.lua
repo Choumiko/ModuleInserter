@@ -105,7 +105,7 @@ end
 data.raw["gui-style"].default["mi-icon-style"] =
     {
         type = "checkbox_style",
-        parent = "checkbox_style",
+        parent = "checkbox",
         width = 32,
         height = 32,
         bottom_padding = 8,
