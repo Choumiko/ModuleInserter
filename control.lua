@@ -135,7 +135,7 @@ local function on_player_selected_area(event)
                     local modules = util.table.deepcopy(config[index].to)
                     local cTable = {}
                     local valid_modules = true
-                    local recipe = entity.get_recipe()
+                    local recipe = entity.type == "assembling-machine" and entity.get_recipe()
                     for _, module in pairs(modules) do
                         if module then
                             if not cTable[module] then
