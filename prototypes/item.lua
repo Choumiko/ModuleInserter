@@ -29,5 +29,6 @@ local mi_proxy_i = copyPrototype("item","wooden-chest","module-inserter-proxy")
 table.insert(mi_proxy_i.flags, "hidden")
 mi_proxy_i.icon = "__ModuleInserter__/graphics/module-inserter-icon.png"
 mi_proxy_i.stack_size = 1000
+mi_proxy_i.fuel_value = nil
 
 data:extend({mi_planner,mi_proxy, mi_proxy_i,})

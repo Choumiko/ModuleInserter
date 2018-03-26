@@ -51,6 +51,22 @@ function count_keys(hashmap) --luacheck: allow defined top
     return result
 end
 
+local _productivity = {}
+
+local function productivity_allowed(module, recipe)
+    if _productivity[recipe] == nil then
+        _productivity[recipe] = false
+        local limits = module and game.item_prototypes[module].limitations or {}
+        for _, r in pairs(limits) do
+            if r == recipe then
+                _productivity[recipe] = true
+                break
+            end
+        end
+    end
+    return _productivity[recipe]
+end
+
 local function on_tick(event)
     if global.removeTicks[event.tick] then
         local status, err = pcall(function()
@@ -151,7 +167,7 @@ local function on_player_selected_area(event)
                                     player.print({"", "Can't insert ", prototype.localised_name, " in ", entity.localised_name})
                                     valid_modules = false
                                 end
-                                if entity.type == "assembling-machine" and recipe and next(prototype.limitations) and not prototype.limitations[recipe.name] then
+                                if entity.type == "assembling-machine" and recipe and next(prototype.limitations) and not productivity_allowed(module, recipe.name) then
                                     player.print({"", "Can't use ", prototype.localised_name, " with recipe: ", recipe.localised_name})
                                     valid_modules = false
                                 end
