@@ -316,7 +316,7 @@ function GUI.set_rule(player, index, proto, element)
             if index ~= i and global["config-tmp"][player.index][i].from == name then
                 GUI.display_message(frame, false, "module-inserter-item-already-set")
                 element.elem_value = nil
-                saveVar(global, "test")
+                --saveVar(global, "test")
                 return
             end
         end
@@ -336,7 +336,7 @@ function GUI.set_rule(player, index, proto, element)
 
     --local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or "-"
     --ruleset_grid["module-inserter-slots-" .. index].caption = slots
-    saveVar(global, "test")
+    --saveVar(global, "test")
     GUI.update_modules(player, index)
 end
 
