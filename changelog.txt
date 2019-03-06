@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 4.0.1
+Date: 06. 03. 2019
+  Changes:
+    - Updated for Factorio 0.17
+    - Replaced buttons in the UI with filter-like buttons (like in the logistics request, autotrash windows)
+    - To set a filter use left click, to reset use right click
+---------------------------------------------------------------------------------------------------
 Version: 3.0.2
 Date: 26. 03. 2018
   Bugfixes:

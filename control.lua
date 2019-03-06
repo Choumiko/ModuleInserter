@@ -609,16 +609,8 @@ local function on_gui_click(event)
             event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
             local type, index, _ = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
             --log(serpent.block({t=type,i=index,s=slot}))
-            --debugDump({t=type,i=index,s=slot},true)
             if type and index then
-                if type == "from" and player.cursor_stack.valid_for_read then
-                    local place_result = player.cursor_stack.prototype.place_result
-                    if place_result and place_result.module_inventory_size then
-                        GUI.set_rule(player, type, tonumber(index))
-                    end
-                -- elseif type == "to" then
-                --     GUI.set_modules(player, tonumber(index), tonumber(slot))
-                elseif type == "restore" then
+                if type == "restore" then
                     GUI.restore(player, tonumber(index))
                 elseif type == "remove" then
                     GUI.remove(player, tonumber(index))

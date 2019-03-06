@@ -388,9 +388,6 @@ function GUI.update_modules(player, index)
         }
         choose_button.elem_value = modules[i] or nil
         choose_button.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or tooltip
-        if modules[i] then
-            log(serpent.block(game.item_prototypes[modules[i]].localised_name))
-        end
     end
 end
 
