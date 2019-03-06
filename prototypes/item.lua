@@ -3,14 +3,13 @@ local mi_planner = {
     name = "module-inserter",
     icon = "__ModuleInserter__/graphics/module-inserter-icon.png",
     icon_size = 32,
-    flags = {"goes-to-quickbar"},
     subgroup = "tool",
     order = "c[automated-construction]-d[module-inserter]",
     stack_size = 1,
     selection_color = { r = 0, g = 1, b = 0 },
     alt_selection_color = { r = 0, g = 0, b = 1 },
-    selection_mode = {"matches-force", "buildable-type"},
-    alt_selection_mode = {"matches-force", "any-entity"},
+    selection_mode = {"same-force", "buildable-type"},
+    alt_selection_mode = {"same-force", "any-entity"},
     selection_cursor_box_type = "copy",
     alt_selection_cursor_box_type = "copy"
 }
@@ -26,6 +25,7 @@ mi_proxy.collision_box = {{-0.1,-0.1},{0.1,0.1}}
 mi_proxy.collision_mask = {"doodad-layer", "not-colliding-with-itself"}
 
 local mi_proxy_i = copyPrototype("item","wooden-chest","module-inserter-proxy")
+mi_proxy_i.flags = mi_proxy_i.flags or {}
 table.insert(mi_proxy_i.flags, "hidden")
 mi_proxy_i.icon = "__ModuleInserter__/graphics/module-inserter-icon.png"
 mi_proxy_i.stack_size = 1000

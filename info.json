@@ -1,10 +1,10 @@
 {
   "name": "ModuleInserter",
-  "version": "3.0.2",
-  "factorio_version": "0.16",
+  "version": "4.0.1",
+  "factorio_version": "0.17",
   "title": "Module Inserter",
   "author": "Choumiko",
   "homepage": "https://forums.factorio.com/viewtopic.php?f=97&t=15184",
-  "description": "Mass insert modules into machines with pocket bots",
-  "dependencies": ["? omnimatter"]
+  "description": "Mass insert modules into machines with personal construction robots",
+  "dependencies": ["(?) omnimatter"]
 }
