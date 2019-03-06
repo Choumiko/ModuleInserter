@@ -34,7 +34,7 @@ typeToSlot["assembling-machine"] = defines.inventory.assembling_machine_modules
 typeToSlot["mining-drill"] = defines.inventory.mining_drill_modules
 typeToSlot["furnace"] = defines.inventory.furnace_modules
 typeToSlot["rocket-silo"] = defines.inventory.assembling_machine_modules
-typeToSlot["beacon"] = 1
+typeToSlot["beacon"] = defines.inventory.beacon_modules
 
 local function entityKey(ent)
     if ent.position and ent.direction then
@@ -141,10 +141,9 @@ local function on_player_selected_area(event)
 
             local proxy = {name="module-inserter-proxy", count=1}
 
-            local can_insert_main = player.get_inventory(defines.inventory.player_main).can_insert(proxy)
-            local can_insert_quick = player.get_inventory(defines.inventory.player_quickbar).can_insert(proxy)
+            local can_insert = player.get_inventory(defines.inventory.player_main).can_insert(proxy)
 
-            if index and (can_insert_main or can_insert_quick) then
+            if index and can_insert then
                 if entity.type == "assembling-machine" and not entity.get_recipe() then
                     player.print("Can't insert modules in assembler without recipe")
                 else
@@ -208,10 +207,8 @@ local function on_player_selected_area(event)
                             global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
                             ghost.time_to_live = 60*30
                             add_ghost(key, {p=player,g=ghost}, game.tick + ghost.time_to_live + 1)
-                            if can_insert_main then
+                            if can_insert then
                                 player.get_inventory(defines.inventory.player_main).insert(proxy)
-                            elseif can_insert_quick then
-                                player.get_inventory(defines.inventory.player_quickbar).insert(proxy)
                             end
                         end
                     end
@@ -234,7 +231,7 @@ local function on_player_alt_selected_area(event)
                 entity.destroy()
             end
             if entity.valid and entity.type == "entity-ghost" and entity.ghost_name == "module-inserter-proxy" then
-                log(entity.ghost_name)
+                --log(entity.ghost_name)
 
                 local key = entityKey(entity)
                 if global.entitiesToInsert[key] then
@@ -270,9 +267,9 @@ local function remove_invalid_items()
     local items = game.item_prototypes
     for name, p in pairs(global.config) do
         for i=#p,1,-1 do
-            if p[i].from ~= "" and not items[p[i].from] then
-                global.config[name][i].from = ""
-                global.config[name][i].to = ""
+            if p[i].from and not items[p[i].from] then
+                global.config[name][i].from = false
+                global.config[name][i].to = {}
                 debugDump(p[i].from,true)
             end
             if type(p[i].to) == "table" then
@@ -288,9 +285,9 @@ local function remove_invalid_items()
     for player, store in pairs(global.storage) do
         for name, p in pairs(store) do
             for i=#p,1,-1 do
-                if p[i].from ~= "" and not items[p[i].from] then
-                    global.storage[player][name][i].from = ""
-                    global.storage[player][name][i].to = ""
+                if p[i].from and not items[p[i].from] then
+                    global.storage[player][name][i].from = false
+                    global.storage[player][name][i].to = {}
                 end
                 if type(p[i].to) == "table" then
                     for k, m in pairs(p[i].to) do
@@ -459,8 +456,48 @@ local function on_configuration_changed(data)
             if oldVersion < "0.2.2" then
                 global.productivityAllowed = nil
             end
-            if oldVersion < "2.0.3" then
-                update_gui()
+
+            if oldVersion < "4.0.1" then
+                --saveVar(global, "preUpdate")
+                for name, p in pairs(global.config) do
+                    for i=#p,1,-1 do
+                        if p[i].from == "" then
+                            global.config[name][i].from = false
+                            global.config[name][i].to = {}
+                        end
+                        if type(p[i].to) ~= "table" then
+                            global.config[name][i].to = {}
+                        end
+                    end
+                end
+
+                for name, p in pairs(global["config-tmp"]) do
+                    for i=#p,1,-1 do
+                        if p[i].from == "" then
+                            global["config-tmp"][name][i].from = false
+                            global["config-tmp"][name][i].to = {}
+                        end
+                        if type(p[i].to) ~= "table" then
+                            global["config-tmp"][name][i].to = {}
+                        end
+                    end
+                end
+
+                for player, store in pairs(global.storage) do
+                    for name, p in pairs(store) do
+                        for i=#p,1,-1 do
+                            if p[i].from == "" then
+                                global.storage[player][name][i].from = false
+                                global.storage[player][name][i].to = {}
+                            end
+                            if type(p[i].to) ~= "table" then
+                                global.storage[player][name][i].to = {}
+                            end
+                        end
+                    end
+                end
+                --saveVar(global, "postUpdate")
+                update_gui(true)
             end
             global.version = newVersion
             --mod was updated
@@ -542,7 +579,7 @@ end)
 local function on_gui_click(event)
     local status, err = pcall(function()
         local element = event.element
-        --debugDump(element.name, true)
+        --log("click " .. element.name)
         local player = game.players[event.player_index]
 
         if element.name == "module-inserter-config-button" then
@@ -552,7 +589,7 @@ local function on_gui_click(event)
         elseif element.name == "module-inserter-clear-all" then
             GUI.clear_all(player)
         elseif element.name == "module-inserter-debug" then
-            saveVar(global,"debugButton")
+            --saveVar(global,"debugButton")
             local c = 0
             for _, _ in pairs(global.entitiesToInsert) do
                 c = c+1
@@ -570,13 +607,17 @@ local function on_gui_click(event)
             GUI.save_as(player)
         else
             event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
-            local type, index, slot = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
+            local type, index, _ = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
+            --log(serpent.block({t=type,i=index,s=slot}))
             --debugDump({t=type,i=index,s=slot},true)
             if type and index then
-                if type == "from" then
-                    GUI.set_rule(player, type, tonumber(index))
-                elseif type == "to" then
-                    GUI.set_modules(player, tonumber(index), tonumber(slot))
+                if type == "from" and player.cursor_stack.valid_for_read then
+                    local place_result = player.cursor_stack.prototype.place_result
+                    if place_result and place_result.module_inventory_size then
+                        GUI.set_rule(player, type, tonumber(index))
+                    end
+                -- elseif type == "to" then
+                --     GUI.set_modules(player, tonumber(index), tonumber(slot))
                 elseif type == "restore" then
                     GUI.restore(player, tonumber(index))
                 elseif type == "remove" then
@@ -590,8 +631,56 @@ local function on_gui_click(event)
     end
 end
 
+-- get a entity prototype from an item name
+local function item_to_entity(name)
+    local proto = game.entity_prototypes[name]
+    if not proto then
+        local item_proto = game.item_prototypes[name]
+        proto = item_proto and item_proto.place_result
+    end
+    return proto
+end
+
+local function on_gui_elem_changed(event)
+    local status, err = pcall(function()
+        --log("elem_changed: " .. event.element.name)
+        --event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
+        local type, index, slot = string.match(event.element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
+        local elem_value = event.element.elem_value
+        --log(serpent.block({t=type,i=index,s=slot, elem_value = elem_value}))
+        local item = false
+        local recipe, result
+        if elem_value then
+            recipe = game.recipe_prototypes[elem_value]
+            item = recipe.main_product or next(recipe.products)
+            -- log(serpent.block(recipe.main_product, {name="main"}))
+            -- log(serpent.block(recipe.products, {name="products"}))
+        end
+        if type == "from" then
+            result = item and item_to_entity(item.name)
+            GUI.set_rule(game.get_player(event.player_index), tonumber(index), result, event.element)
+            -- if result then
+            --     log(serpent.block(result.name))
+            --     log(result.module_inventory_size)
+            -- end
+        elseif type == "to" then
+            result = item and game.item_prototypes[item.name]
+            GUI.set_modules(game.get_player(event.player_index), tonumber(index), tonumber(slot), result)
+            -- if result then
+            --     log(serpent.block(result.name))
+            --     log(serpent.block(result.module_effects))
+            -- end
+        end
+    end)
+    if not status then
+        debugDump(err, true)
+    end
+end
+
 script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_gui_checked_state_changed, on_gui_click)
+script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
+
 
 script.on_event(defines.events.on_research_finished, function(event)
     if event.research.name == 'construction-robotics' then

@@ -16,9 +16,10 @@ function GUI.init(player, after_research)
     if not player.gui.top["module-inserter-config-button"]
         and (player.force.technologies["construction-robotics"].researched or after_research) then
         player.gui.top.add{
-            type = "button",
+            type = "sprite-button",
             name = "module-inserter-config-button",
-            style = "module-inserter-button"
+            style = "module-inserter-button",
+            sprite = "technology/modules"
         }
     end
     GUI.get_or_create_left_frame(player)
@@ -59,7 +60,7 @@ function GUI.open_frame(player)
     -- We need to copy all items from normal config to temporary config.
     for i = 1, MAX_CONFIG_SIZE do
         if i > #global["config"][player.index] then
-            global["config-tmp"][player.index][i] = { from = "", to = {} }
+            global["config-tmp"][player.index][i] = {from = false, to = {}}
         else
             global["config-tmp"][player.index][i] = {
                 from = global["config"][player.index][i].from,
@@ -102,20 +103,19 @@ function GUI.open_frame(player)
         name = "module-inserter-grid-header-2",
         caption = {"module-inserter-config-header-2"}
     }
-
+    --saveVar(global, "test")
     for i = 1, MAX_CONFIG_SIZE do
-        local style = global["config-tmp"][player.index][i].from or "style"
-        style = style == "" and "style" or style
-        local tooltip = (global["config-tmp"][player.index][i].from ~= "" and game.item_prototypes[global["config-tmp"][player.index][i].from])
-            and game.item_prototypes[global["config-tmp"][player.index][i].from].localised_name or ""
-        ruleset_grid.add{
-            type = "checkbox",
+        local assembler = global["config-tmp"][player.index][i].from
+        assembler = assembler or nil
+        local tooltip = (assembler  and game.item_prototypes[assembler]) and game.item_prototypes[assembler].localised_name or {"module-inserter-choose-assembler"}
+        local choose_button = ruleset_grid.add{
+            type = "choose-elem-button",
             name = "module-inserter-from-" .. i,
-            style = "mi-icon-" ..style,
-            state = false,
+            style = "slot_button",
+            elem_type = "item",
             tooltip = tooltip
-        --caption = get_config_item(player, i, "from")
         }
+        choose_button.elem_value = assembler
         ruleset_grid.add{
             type = "label",
             caption = "  "
@@ -239,13 +239,14 @@ function GUI.save_changes(player, name)
         global["config"][player.index] = {}
 
         for i = 1, #global["config-tmp"][player.index] do
-            -- Rule can be saved only if both "from" and "to" fields are set.
-            if global["config-tmp"][player.index][i].from == "" or global["config-tmp"][player.index][i].to == "" then
-                global["config"][player.index][i] = { from = "", to = "" }
+            -- Rule can be saved only if both "from" and "to" fields are set. <-- WHY????
+
+            if not global["config-tmp"][player.index][i] or type(global["config-tmp"][player.index][i].to) ~= "table" then
+                global["config"][player.index][i] = { from = false, to = {} }
             else
                 global["config"][player.index][i] = {
                     from = global["config-tmp"][player.index][i].from,
-                    to = util.table.deepcopy(global["config-tmp"][player.index][i].to)
+                    to = global["config-tmp"][player.index][i].to
                 }
             end
         end
@@ -278,8 +279,8 @@ function GUI.clear_all(player)
     frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
 
     for i = 1, MAX_CONFIG_SIZE do
-        global["config-tmp"][player.index][i] = { from = "", to = {} }
-        ruleset_grid["module-inserter-from-" .. i].style = "mi-icon-style"
+        global["config-tmp"][player.index][i] = { from = false, to = {} }
+        ruleset_grid["module-inserter-from-" .. i].elem_value = nil
         GUI.update_modules(player, i)
     end
 end
@@ -298,89 +299,74 @@ function GUI.display_message(frame, storage, message)
     error_label.caption = message
 end
 
-function GUI.set_rule(player, type1, index)
+function GUI.set_rule(player, index, proto, element)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
     if not frame or not global["config-tmp"][player.index] then return end
 
-    local stack = player.cursor_stack
-    if not stack.valid_for_read then
-        stack = {type = "empty", name = ""}
-        global["config-tmp"][player.index][index].from = ""
-        --GUI.display_message(frame, false, "module-inserter-item-empty")
-        --return
-    end
-
-    if type1 ~= "to" then
-        if type1 == "from" then
-            for i = 1, #global["config-tmp"][player.index] do
-                if stack.type ~= "empty" and index ~= i and global["config-tmp"][player.index][i].from == stack.name then
-                    GUI.display_message(frame, false, "module-inserter-item-already-set")
-                    return
-                end
-            end
-        end
-        if stack.type ~= "empty" and not global.nameToSlots[stack.name] then
-            GUI.display_message(frame, false, "module-inserter-item-no-slots")
-            return
-        end
-    end
-    if stack.type == "empty" or stack.name ~= global["config-tmp"][player.index][index][type1] then
-        global["config-tmp"][player.index][index].to = {}
-    end
-    global["config-tmp"][player.index][index][type1] = stack.name
-    local ruleset_grid = frame["module-inserter-ruleset-grid"]
-    local style = global["config-tmp"][player.index][index].from ~= "" and "mi-icon-"..global["config-tmp"][player.index][index].from or "mi-icon-style"
-    local tooltip = (global["config-tmp"][player.index][index].from ~= "" and game.item_prototypes[global["config-tmp"][player.index][index].from])
-        and game.item_prototypes[global["config-tmp"][player.index][index].from].localised_name or ""
-    ruleset_grid["module-inserter-" .. type1 .. "-" .. index].style = style
-    ruleset_grid["module-inserter-" .. type1 .. "-" .. index].tooltip = tooltip
-    ruleset_grid["module-inserter-" .. type1 .. "-" .. index].state = false
-    if type1 == "from" then
-        --local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or "-"
-        --ruleset_grid["module-inserter-slots-" .. index].caption = slots
-        GUI.update_modules(player, index)
-    end
-end
-
-function GUI.set_modules(player, index, slot)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
-    if not frame or not global["config-tmp"][player.index] then return end
-
-    local stack = player.cursor_stack
-    if not stack.valid_for_read then
-        --GUI.display_message(frame, false, "module-inserter-item-empty")
-        stack = {type = "empty", name = ""}
-    end
-    if global["config-tmp"][player.index][index].from == "" then
-        GUI.display_message(frame, false, "module-inserter-item-no-entity")
+    if proto and proto.module_inventory_size == 0 then
+        GUI.display_message(frame, false, "module-inserter-item-no-slots")
         return
     end
 
-    local type1 = "to"
-    local config = global["config-tmp"][player.index][index]
-    local modules = type(config[type1]) == "table" and config[type1] or {}
-
-    if stack.type == "module" then
-        local itemEffects = game.item_prototypes[stack.name].module_effects
-        if game.entity_prototypes[config.from].type == "beacon" and itemEffects and itemEffects.productivity then
-            if not game.item_prototypes["module-inserter-beacon"] and itemEffects.productivity ~= 0 then
-                GUI.display_message(frame,false,"module-inserter-no-productivity-beacon")
+    local name = proto and proto.name
+    if name then
+        for i = 1, #global["config-tmp"][player.index] do
+            if index ~= i and global["config-tmp"][player.index][i].from == name then
+                GUI.display_message(frame, false, "module-inserter-item-already-set")
+                element.elem_value = nil
+                saveVar(global, "test")
                 return
             end
         end
-        modules[slot] = stack.name
-    elseif stack.type == "empty" then
-        modules[slot] = false
-    else
-        GUI.display_message(frame,false,"module-inserter-item-no-module")
-        return
     end
-    --debugDump(modules,true)
-    global["config-tmp"][player.index][index][type1] = modules
+
+    if name ~= global["config-tmp"][player.index][index].from then
+        global["config-tmp"][player.index][index].to = {}
+    end
+    global["config-tmp"][player.index][index].from = name
+    local ruleset_grid = frame["module-inserter-ruleset-grid"]
+    local sprite = global["config-tmp"][player.index][index].from or nil
+    local tooltip = proto and proto.localised_name or {"module-inserter-choose-assembler"}
+
+    local choose_button = ruleset_grid["module-inserter-from-" .. index]
+    choose_button.elem_value = sprite
+    choose_button.tooltip = tooltip
+
+    --local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or "-"
+    --ruleset_grid["module-inserter-slots-" .. index].caption = slots
+    saveVar(global, "test")
+    GUI.update_modules(player, index)
+end
+
+function GUI.set_modules(player, index, slot, proto)
+    local left = GUI.get_left_frame(player)
+    if not left then return end
+    local frame = left["module-inserter-config-frame"]
+    if not frame or not global["config-tmp"][player.index] then return end
+
+    local config = global["config-tmp"][player.index][index]
+    local modules = type(config.to) == "table" and config.to or {}
+
+    if proto and proto.type == "module" then
+        local itemEffects = proto.module_effects
+        if game.entity_prototypes[config.from].type == "beacon" and itemEffects and itemEffects.productivity then
+            if not game.item_prototypes["module-inserter-beacon"] and itemEffects.productivity ~= 0 then
+                GUI.display_message(frame,false,"module-inserter-no-productivity-beacon")
+                modules[slot] = false
+            end
+        else
+            modules[slot] = proto.name
+        end
+    elseif not proto then
+        modules[slot] = false
+    -- else
+    --     GUI.display_message(frame,false,"module-inserter-item-no-module")
+    --     return
+    end
+    global["config-tmp"][player.index][index].to = modules
+    --saveVar(global, "test2")
     GUI.update_modules(player, index)
 end
 
@@ -391,21 +377,19 @@ function GUI.update_modules(player, index)
     local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or 1
     local modules = global["config-tmp"][player.index][index].to
     local flow = frame["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
-    for i=#flow.children_names,1,-1 do
-        flow[flow.children_names[i]].destroy()
-    end
+    flow.clear()
+    local tooltip = {"module-inserter-choose-module"}
     for i=1,slots do
-        local style = modules[i] and "mi-icon-" .. modules[i] or "mi-icon-style"
-        if flow["module-inserter-to-" .. index .. "-" .. i] then
-            flow["module-inserter-to-" .. index .. "-" .. i].style = style
-            flow["module-inserter-to-" .. index .. "-" .. i].state = false
-        else
-            flow.add{
-                type = "checkbox",
-                name = "module-inserter-to-" .. index .. "-" .. i,
-                style = style,
-                state = false
-            }
+        local choose_button = flow.add{
+            type = "choose-elem-button",
+            name = "module-inserter-to-" .. index .. "-" .. i,
+            style = "slot_button",
+            elem_type = "item",
+        }
+        choose_button.elem_value = modules[i] or nil
+        choose_button.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or tooltip
+        if modules[i] then
+            log(serpent.block(game.item_prototypes[modules[i]].localised_name))
         end
     end
 end
@@ -420,7 +404,7 @@ function GUI.store(player)
     local name = textfield.text
     name = string.match(name, "^%s*(.-)%s*$")
 
-    if not name or name == "" then
+    if not name then
         GUI.display_message(storage_frame, true, "module-inserter-storage-name-not-set")
         return
     end
@@ -518,16 +502,15 @@ function GUI.restore(player, index)
     local ruleset_grid = frame["module-inserter-ruleset-grid"]
     for i = 1, MAX_CONFIG_SIZE do
         if i > #global["storage"][player.index][name] then
-            global["config-tmp"][player.index][i] = { from = "", to = "" }
+            global["config-tmp"][player.index][i] = {from = false, to = {}}
         else
             global["config-tmp"][player.index][i] = {
                 from = global["storage"][player.index][name][i].from,
                 to = util.table.deepcopy(global["storage"][player.index][name][i].to)
             }
         end
-        local style = global["config-tmp"][player.index][i].from ~= "" and "mi-icon-"..global["config-tmp"][player.index][i].from or "mi-icon-style"
-        ruleset_grid["module-inserter-from-" .. i].style = style
-        ruleset_grid["module-inserter-from-" .. i].state = false
+        local assembler = global["config-tmp"][player.index][i].from or nil
+        ruleset_grid["module-inserter-from-" .. i].elem_value = assembler
         GUI.update_modules(player, i)
     end
     GUI.display_message(storage_frame, true, "---")
