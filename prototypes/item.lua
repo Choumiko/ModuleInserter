@@ -20,6 +20,7 @@ local mi_planner = {
 
 local mi_proxy = copyPrototype("container","wooden-chest","module-inserter-proxy")
 mi_proxy.icon = "__ModuleInserter__/graphics/module-inserter-icon.png"
+mi_proxy.flags = mi_proxy.flags or {}
 table.insert(mi_proxy.flags, "placeable-off-grid")
 mi_proxy.collision_box = {{-0.1,-0.1},{0.1,0.1}}
 mi_proxy.collision_mask = {"doodad-layer", "not-colliding-with-itself"}

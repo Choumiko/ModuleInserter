@@ -12,6 +12,7 @@ end
 
 if checkProductivity() then
     local metaBeacon = copyPrototype("selection-tool","module-inserter","module-inserter-beacon")
+    metaBeacon.flags = metaBeacon.flags or {}
     table.insert(metaBeacon.flags, "hidden")
     data:extend({metaBeacon})
 end
