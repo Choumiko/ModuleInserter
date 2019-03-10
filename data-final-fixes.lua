@@ -1,4 +1,4 @@
-local copyPrototype = require "lib"
+local copyPrototype = require "__ModuleInserter__/lib"
 
 local function checkProductivity()
     for _, beacon in pairs(data.raw.beacon) do

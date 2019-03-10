@@ -1,4 +1,4 @@
-require "util"
+require "__core__/lualib/util"
 
 MAX_CONFIG_SIZE = 6 --luacheck: allow defined top
 MAX_STORAGE_SIZE = 12 --luacheck: allow defined top
@@ -24,7 +24,7 @@ function saveVar(var, name) --luacheck: allow defined top
     game.write_file("module"..n..".lua", serpent.block(var, {name="glob"}))
 end
 
-local GUI = require "gui"
+local GUI = require "__ModuleInserter__/gui"
 
 MOD_NAME = "ModuleInserter" --luacheck: allow defined top
 
