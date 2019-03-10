@@ -638,6 +638,9 @@ local function on_gui_elem_changed(event)
         --log("elem_changed: " .. event.element.name)
         --event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
         local type, index, slot = string.match(event.element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
+        if not type then
+            return
+        end
         local elem_value = event.element.elem_value
         --log(serpent.block({t=type,i=index,s=slot, elem_value = elem_value}))
         local item = false
