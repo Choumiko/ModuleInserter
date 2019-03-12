@@ -1,5 +1,5 @@
 require "__core__/lualib/util"
-
+local v = require "__ModuleInserter__/semver"
 --MAX_CONFIG_SIZE = 20 --luacheck: allow defined top
 MAX_STORAGE_SIZE = 12 --luacheck: allow defined top
 DEBUG = false --luacheck: allow defined top
@@ -407,6 +407,7 @@ local function on_configuration_changed(data)
     end
     if data.mod_changes[MOD_NAME] then
         local newVersion = data.mod_changes[MOD_NAME].new_version
+        newVersion = v(newVersion)
         local oldVersion = data.mod_changes[MOD_NAME].old_version
         -- mod was added to existing save
         if not oldVersion then
@@ -415,28 +416,29 @@ local function on_configuration_changed(data)
             init_players()
             update_gui(true)
         else
-            if oldVersion < "0.1.3" then
+            oldVersion = v(oldVersion)
+            if oldVersion < v"0.1.3" then
                 init_global()
                 init_players()
                 update_gui(true)
             end
-            if oldVersion < "0.1.34" then
+            if oldVersion < v"0.1.34" then
                 local tmp = {}
                 tmp.config = util.table.deepcopy(global["config"])
                 tmp["config-tmp"] = util.table.deepcopy(global["config-tmp"])
                 tmp.storage  = util.table.deepcopy(global["storage"])
                 tmp.settings = util.table.deepcopy(global.settings)
-                for k, v in pairs(tmp) do
+                for k, config in pairs(tmp) do
                     global[k] = {}
                     for _, player in pairs(game.players) do
                         if player.name and v[player.name] then
-                            global[k][player.index] = v[player.name]
+                            global[k][player.index] = config[player.name]
                         end
                     end
                 end
                 cleanup(true)
             end
-            if oldVersion < "0.1.4" then
+            if oldVersion < v"0.1.4" then
                 for _, ent in pairs(global.entitiesToInsert) do
                     if ent.ghost and ent.ghost.valid then
                         ent.ghost.destroy()
@@ -453,11 +455,15 @@ local function on_configuration_changed(data)
                 on_load()
             end
 
-            if oldVersion < "0.2.2" then
+            if oldVersion < v"0.2.2" then
                 global.productivityAllowed = nil
             end
 
-            if oldVersion < "4.0.1" then
+            if oldVersion < v"0.2.3" then
+                update_gui(true)
+            end
+
+            if oldVersion < v"4.0.1" then
                 --saveVar(global, "preUpdate")
                 for name, p in pairs(global.config) do
                     for i=#p,1,-1 do
@@ -497,7 +503,6 @@ local function on_configuration_changed(data)
                     end
                 end
                 --saveVar(global, "postUpdate")
-                update_gui(true)
             end
             global.version = newVersion
             --mod was updated
@@ -536,8 +541,8 @@ script.on_event(defines.events.on_robot_built_entity, function(event)
                 local inventory = origEntity.get_inventory(typeToSlot[origEntity.type])
                 local contents = inventory.get_contents()
                 -- remove all modules first
-                for k, v in pairs(contents) do
-                    for _ = 1, v do
+                for k, amount in pairs(contents) do
+                    for _ = 1, amount do
                         if player.can_insert{name=k,count=1} then
                             inventory.remove{name=k, count=1}
                             player.insert{name=k, count=1}
