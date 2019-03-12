@@ -19,7 +19,7 @@ end
 function saveVar(var, name) --luacheck: allow defined top
     var = var or global
     local n = name or ""
-    game.write_file("module"..n..".lua", serpent.block(var, {name="glob"}))
+    game.write_file("module"..n..".lua", serpent.block(var, {name="global"}))
 end
 
 local GUI = require "__ModuleInserter__/gui"
@@ -118,7 +118,7 @@ end
 local function on_player_selected_area(event)
     local status, err = pcall(function()
         if not event.player_index or event.item ~= "module-inserter" then return end
-        local player = game.players[event.player_index]
+        local player = game.get_player(event.player_index)
         if not global["config"][player.index] then
             global["config"][player.index] = {}
             return
@@ -222,7 +222,7 @@ end
 local function on_player_alt_selected_area(event)
     local status, err = pcall(function()
         if not event.player_index or event.item ~= "module-inserter" then return end
-        local player = game.players[event.player_index]
+        local player = game.get_player(event.player_index)
 
         for _, entity in pairs(event.entities) do
             if entity.name == "item-request-proxy" then
@@ -332,10 +332,16 @@ local function init_global()
     global["storage"] = global["storage"] or {}
     global.nameToSlots = global.nameToSlots or {}
     global.settings = global.settings or {}
+    global.storage = global.storage or {}
 end
 
 local function init_player(player)
-    global.settings[player.index] = global.settings[player.index] or {}
+    local i = player.index
+    global.settings[i] = global.settings[i] or {}
+    global.config[i] = global.config[i] or {}
+    global.storage[i] = global.storage[i] or {}
+    -- not setting config-tmp intentionally
+    --global["config-tmp"][i] = global["config-tmp"][i] or {}
     GUI.init(player)
 end
 
@@ -345,20 +351,9 @@ local function init_players()
     end
 end
 
-local function init_force(_)
---force specific
-end
-
-local function init_forces()
-    for _, force in pairs(game.forces) do
-        init_force(force)
-    end
-end
-
 local function on_init()
     init_global()
     getMetaItemData()
-    init_forces()
 end
 
 local function on_load()
@@ -410,7 +405,6 @@ local function on_configuration_changed(data)
         -- mod was added to existing save
         if not oldVersion then
             init_global()
-            init_forces()
             init_players()
             update_gui(true)
         else
@@ -505,6 +499,9 @@ local function on_configuration_changed(data)
             end
 
             if oldVersion < v"4.0.4" then
+                --just to make extra sure all is set
+                init_global()
+                init_players()
                 for i, player in pairs(game.players) do
                     if player and player.valid then
                         GUI.refresh(player)
@@ -528,15 +525,10 @@ local function on_player_created(event)
     init_player(game.players[event.player_index])
 end
 
-local function on_force_created(event)
-    init_force(event.force)
-end
-
 script.on_init(on_init)
 script.on_load(on_load)
 script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_player_created, on_player_created)
-script.on_event(defines.events.on_force_created, on_force_created)
 
 script.on_event(defines.events.on_robot_built_entity, function(event)
     local status, err = pcall(function()
@@ -595,7 +587,7 @@ local function on_gui_click(event)
     local status, err = pcall(function()
         local element = event.element
         --log("click " .. element.name)
-        local player = game.players[event.player_index]
+        local player = game.get_player(event.player_index)
 
         if element.name == "module-inserter-config-button" then
             GUI.open_frame(player)
@@ -708,24 +700,7 @@ local function on_runtime_mod_setting_changed(event)
         if event.setting_type == "runtime-per-user" and event.setting == "module_inserter_config_size" then
             --probably want to in/decrease config and config-tmp and refresh the players ui if it is opened
             GUI.refresh(game.get_player(event.player_index))
-
-            --TODO remove
-            --log(serpent.block(settings.get_player_settings(game.get_player(event.player_index)).module_inserter_config_size))
-            --log("config_size: " .. settings.player[event.setting].value)
         end
-        -- if event.setting == "unminable_vehicles_teleport_players" then
-        --     if not settings.global["unminable_vehicles_teleport_players"].value then
-        --         global.teleported_players = {}
-        --     end
-        --     conditional_events()
-        -- end
-        -- if event.setting == "unminable_vehicles_prevent_rotation" then
-        --     conditional_events()
-        -- end
-        -- if event.setting == "unminable_vehicles_make_unminable" then
-        --     update_vehicles( not settings.global["unminable_vehicles_make_unminable"].value )
-        --     conditional_events()
-        -- end
     end)
     if err then
         log("ModuleInserter: Error occured")

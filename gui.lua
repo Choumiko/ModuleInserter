@@ -67,9 +67,6 @@ function GUI.open_frame(player, tmp_config)
         return
     end
 
-    -- If player config does not exist, we need to create it.
-    global["config"][player.index] = global["config"][player.index] or {}
-
     -- Temporary config lives as long as the frame is open, so it has to be created
     -- every time the frame is opened.
     global["config-tmp"][player.index] = tmp_config or {}
@@ -424,7 +421,6 @@ function GUI.update_modules(player, index)
 end
 
 function GUI.store(player)
-    global["storage"][player.index] = global["storage"][player.index] or {}
     local left = GUI.get_left_frame(player)
     if not left then return end
     local storage_frame = left["module-inserter-storage-frame"]
@@ -478,7 +474,6 @@ function GUI.store(player)
 end
 
 function GUI.save_as(player)
-    global["storage"][player.index] = global["storage"][player.index] or {}
     local left = GUI.get_left_frame(player)
     if not left then return end
     local storage_frame = left["module-inserter-storage-frame"]
