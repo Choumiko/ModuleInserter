@@ -1,7 +1,5 @@
 require "__core__/lualib/util"
 local v = require "__ModuleInserter__/semver"
---MAX_CONFIG_SIZE = 20 --luacheck: allow defined top
-MAX_STORAGE_SIZE = 12 --luacheck: allow defined top
 DEBUG = false --luacheck: allow defined top
 
 function debugDump(var, force) --luacheck: allow defined top
@@ -502,11 +500,23 @@ local function on_configuration_changed(data)
                         end
                     end
                 end
+                update_gui(true)
                 --saveVar(global, "postUpdate")
             end
-            global.version = newVersion
-            --mod was updated
-            -- update/change gui for all players via game.players.gui ?
+
+            if oldVersion < v"4.0.4" then
+                for i, player in pairs(game.players) do
+                    if player and player.valid then
+                        GUI.refresh(player)
+                    else
+                        global.config[i] = nil
+                        global.settings[i] = nil
+                        global.storage[i] = nil
+                        global["config-tmp"][i] = nil
+                    end
+                end
+            end
+            global.version = tostring(newVersion) --do i really need that?
         end
     end
     getMetaItemData()

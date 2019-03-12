@@ -196,6 +196,9 @@ function GUI.open_frame(player, tmp_config)
         caption = {"module-inserter-storage-frame-title"},
         direction = "vertical"
     }
+    storage_frame.style.maximal_height = 596
+    storage_frame.style.maximal_width = 500
+
     local storage_frame_error_label = storage_frame.add{
         type = "label",
         name = "module-inserter-storage-error-label",
@@ -223,7 +226,13 @@ function GUI.open_frame(player, tmp_config)
         name = "module-inserter-storage-store",
         style = "module-inserter-small-button"
     }
-    local storage_grid = storage_frame.add{
+
+    local storage_pane = storage_frame.add{
+        type = "scroll-pane",
+        name = "module-inserter-storage-pane",
+    }
+
+    local storage_table = storage_pane.add{
         type = "table",
         column_count = 3,
         name = "module-inserter-storage-grid"
@@ -232,18 +241,18 @@ function GUI.open_frame(player, tmp_config)
     if global["storage"][player.index] then
         local i = 1
         for key, _ in pairs(global["storage"][player.index]) do
-            storage_grid.add{
+            storage_table.add{
                 type = "label",
                 caption = key .. "        ",
                 name = "module-inserter-storage-entry-" .. i
             }
-            storage_grid.add{
+            storage_table.add{
                 type = "button",
                 caption = {"module-inserter-storage-restore"},
                 name = "module-inserter-restore-" .. i,
                 style = "module-inserter-small-button"
             }
-            storage_grid.add{
+            storage_table.add{
                 type = "button",
                 caption = {"module-inserter-storage-remove"},
                 name = "module-inserter-remove-" .. i,
@@ -441,12 +450,8 @@ function GUI.store(player)
         }
     end
 
-    local storage_grid = storage_frame["module-inserter-storage-grid"]
+    local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
     local index = count_keys(global["storage"][player.index]) + 1
-    if index > MAX_STORAGE_SIZE + 1 then
-        GUI.display_message(storage_frame, true, "module-inserter-storage-too-long")
-        return
-    end
 
     storage_grid.add{
         type = "label",
@@ -488,11 +493,6 @@ function GUI.save_as(player)
         GUI.display_message(frame, true, "module-inserter-storage-name-not-set")
         return
     end
-    local index = count_keys(global["storage"][player.index]) + 1
-    if not global["storage"][player.index][name] and index > MAX_STORAGE_SIZE then
-        GUI.display_message(frame, false, "module-inserter-storage-too-long")
-        return
-    end
 
     global["storage"][player.index][name] = {}
     for i = 1, #global["config-tmp"][player.index] do
@@ -511,7 +511,7 @@ function GUI.restore(player, index)
     local storage_frame = left["module-inserter-storage-frame"]
     if not frame or not storage_frame then return end
 
-    local storage_grid = storage_frame["module-inserter-storage-grid"]
+    local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
     local storage_entry = storage_grid["module-inserter-storage-entry-" .. index]
     if not storage_entry then return end
 
@@ -543,7 +543,7 @@ function GUI.remove(player, index)
     if not left then return end
     local storage_frame = left["module-inserter-storage-frame"]
     if not storage_frame then return end
-    local storage_grid = storage_frame["module-inserter-storage-grid"]
+    local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
     local label = storage_grid["module-inserter-storage-entry-" .. index]
     local btn1 = storage_grid["module-inserter-restore-" .. index]
     local btn2 = storage_grid["module-inserter-remove-" .. index]

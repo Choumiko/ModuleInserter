@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 4.0.4
+Date: 12. 03. 2019
+  Changes:
+    - added mod setting to adjust the number of assemblers you can configure per profile
+    - added scroll-pane for configuration and storage
+  Bugfixes:
+    - fixed possible error with modded machines
+---------------------------------------------------------------------------------------------------
 Version: 4.0.3
 Date: 10. 03. 2019
   Bugfixes:
