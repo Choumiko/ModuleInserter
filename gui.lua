@@ -42,7 +42,24 @@ function GUI.destroy(player)
     end
 end
 
-function GUI.open_frame(player)
+function GUI.refresh(player)
+    local left = GUI.get_left_frame(player)
+    if not left then return end
+    local frame = left["module-inserter-config-frame"]
+    if frame and frame.valid then
+        frame.destroy()
+    end
+    local storage = left["module-inserter-storage-frame"]
+    if storage and storage.valid then
+        storage.destroy()
+    end
+    if not frame then
+        return
+    end
+    GUI.open_frame(player, global["config-tmp"][player.index])
+end
+
+function GUI.open_frame(player, tmp_config)
     local left = GUI.get_or_create_left_frame(player)
     local frame = left["module-inserter-config-frame"]
     if frame then
@@ -55,16 +72,19 @@ function GUI.open_frame(player)
 
     -- Temporary config lives as long as the frame is open, so it has to be created
     -- every time the frame is opened.
-    global["config-tmp"][player.index] = {}
-
+    global["config-tmp"][player.index] = tmp_config or {}
+    local max_config_size = player.mod_settings.module_inserter_config_size.value
     -- We need to copy all items from normal config to temporary config.
-    for i = 1, MAX_CONFIG_SIZE do
-        if i > #global["config"][player.index] then
-            global["config-tmp"][player.index][i] = {from = false, to = {}}
+    local config_tmp = global["config-tmp"][player.index]
+    local config = global["config"][player.index]
+    --FIXME what is this stupditiy?!
+    for i = 1, max_config_size do
+        if i > #config then
+            config_tmp[i] = {from = false, to = {}}
         else
-            global["config-tmp"][player.index][i] = {
-                from = global["config"][player.index][i].from,
-                to = util.table.deepcopy(global["config"][player.index][i].to)
+            config_tmp[i] = {
+                from = config[i].from,
+                to = util.table.deepcopy(config[i].to)
             }
         end
     end
@@ -84,7 +104,12 @@ function GUI.open_frame(player)
         name = "module-inserter-error-label"
     }
     error_label.style.minimal_width = 200
-    local ruleset_grid = frame.add{
+
+    local scroll_pane = frame.add{
+        type = "scroll-pane",
+        name = "module-inserter-config-pane"
+    }
+    local ruleset_grid = scroll_pane.add{
         type = "table",
         column_count = 3,
         name = "module-inserter-ruleset-grid"
@@ -104,8 +129,8 @@ function GUI.open_frame(player)
         caption = {"module-inserter-config-header-2"}
     }
     --saveVar(global, "test")
-    for i = 1, MAX_CONFIG_SIZE do
-        local assembler = global["config-tmp"][player.index][i].from
+    for i = 1, max_config_size do
+        local assembler = config_tmp[i].from
         assembler = assembler or nil
         local tooltip = (assembler  and game.item_prototypes[assembler]) and game.item_prototypes[assembler].localised_name or {"module-inserter-choose-assembler"}
         local choose_button = ruleset_grid.add{
@@ -274,11 +299,11 @@ function GUI.clear_all(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
     if not frame then return end
-    local ruleset_grid = frame["module-inserter-ruleset-grid"]
+    local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
     global.config[player.index].loaded = nil
     frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
 
-    for i = 1, MAX_CONFIG_SIZE do
+    for i = 1, player.mod_settings.module_inserter_config_size.value do
         global["config-tmp"][player.index][i] = { from = false, to = {} }
         ruleset_grid["module-inserter-from-" .. i].elem_value = nil
         GUI.update_modules(player, i)
@@ -305,8 +330,9 @@ function GUI.set_rule(player, index, proto, element)
     local frame = left["module-inserter-config-frame"]
     if not frame or not global["config-tmp"][player.index] then return end
 
-    if proto and proto.module_inventory_size == 0 then
+    if proto and (not proto.module_inventory_size or proto.module_inventory_size == 0) then
         GUI.display_message(frame, false, "module-inserter-item-no-slots")
+        element.elem_value = nil
         return
     end
 
@@ -326,7 +352,7 @@ function GUI.set_rule(player, index, proto, element)
         global["config-tmp"][player.index][index].to = {}
     end
     global["config-tmp"][player.index][index].from = name
-    local ruleset_grid = frame["module-inserter-ruleset-grid"]
+    local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
     local sprite = global["config-tmp"][player.index][index].from or nil
     local tooltip = proto and proto.localised_name or {"module-inserter-choose-assembler"}
 
@@ -334,9 +360,6 @@ function GUI.set_rule(player, index, proto, element)
     choose_button.elem_value = sprite
     choose_button.tooltip = tooltip
 
-    --local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or "-"
-    --ruleset_grid["module-inserter-slots-" .. index].caption = slots
-    --saveVar(global, "test")
     GUI.update_modules(player, index)
 end
 
@@ -376,7 +399,7 @@ function GUI.update_modules(player, index)
     local frame = left["module-inserter-config-frame"]
     local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or 1
     local modules = global["config-tmp"][player.index][index].to
-    local flow = frame["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
+    local flow = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
     flow.clear()
     local tooltip = {"module-inserter-choose-module"}
     for i=1,slots do
@@ -496,8 +519,8 @@ function GUI.restore(player, index)
     if not global["storage"][player.index] or not global["storage"][player.index][name] then return end
 
     global["config-tmp"][player.index] = {}
-    local ruleset_grid = frame["module-inserter-ruleset-grid"]
-    for i = 1, MAX_CONFIG_SIZE do
+    local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
+    for i = 1, player.mod_settings.module_inserter_config_size.value do
         if i > #global["storage"][player.index][name] then
             global["config-tmp"][player.index][i] = {from = false, to = {}}
         else

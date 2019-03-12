@@ -1,6 +1,6 @@
 require "__core__/lualib/util"
 
-MAX_CONFIG_SIZE = 6 --luacheck: allow defined top
+--MAX_CONFIG_SIZE = 20 --luacheck: allow defined top
 MAX_STORAGE_SIZE = 12 --luacheck: allow defined top
 DEBUG = false --luacheck: allow defined top
 
@@ -15,7 +15,7 @@ function debugDump(var, force) --luacheck: allow defined top
             end
             player.print(msg)
         end
-end
+    end
 end
 
 function saveVar(var, name) --luacheck: allow defined top
@@ -646,22 +646,37 @@ local function on_gui_elem_changed(event)
         local item = false
         local recipe, result
         if elem_value then
-            recipe = game.recipe_prototypes[elem_value]
-            item = recipe.main_product or next(recipe.products)
-            -- log(serpent.block(recipe.main_product, {name="main"}))
+            item = game.item_prototypes[elem_value]
+            if not item then
+                --try recipes then entities
+                recipe = game.recipe_prototypes[elem_value]
+                item = recipe and recipe.main_product or next(recipe.products)
+                item = item or game.entity_prototypes[elem_value]
+            end
+            -- if item then
+            --     log(serpent.block(item.type))
+            -- else
+            --     log("nothing found")
+            -- end
             -- log(serpent.block(recipe.products, {name="products"}))
         end
+        local player = game.get_player(event.player_index)
         if type == "from" then
             result = item and item_to_entity(item.name)
-            GUI.set_rule(game.get_player(event.player_index), tonumber(index), result, event.element)
+            GUI.set_rule(player, tonumber(index), result, event.element)
             -- if result then
+            --     log(serpent.block(result.type))
             --     log(serpent.block(result.name))
             --     log(result.module_inventory_size)
             -- end
+            if elem_value and not result then
+                player.print("No entity found for item: " .. elem_value)
+            end
         elseif type == "to" then
             result = item and game.item_prototypes[item.name]
-            GUI.set_modules(game.get_player(event.player_index), tonumber(index), tonumber(slot), result)
+            GUI.set_modules(player, tonumber(index), tonumber(slot), result)
             -- if result then
+            --     log(serpent.block(result.type))
             --     log(serpent.block(result.name))
             --     log(serpent.block(result.module_effects))
             -- end
@@ -671,6 +686,38 @@ local function on_gui_elem_changed(event)
         debugDump(err, true)
     end
 end
+
+local function on_runtime_mod_setting_changed(event)
+    local _, err = pcall(function()
+        --log(serpent.block(event))
+        if event.setting_type == "runtime-per-user" and event.setting == "module_inserter_config_size" then
+            --probably want to in/decrease config and config-tmp and refresh the players ui if it is opened
+            GUI.refresh(game.get_player(event.player_index))
+
+            --TODO remove
+            --log(serpent.block(settings.get_player_settings(game.get_player(event.player_index)).module_inserter_config_size))
+            --log("config_size: " .. settings.player[event.setting].value)
+        end
+        -- if event.setting == "unminable_vehicles_teleport_players" then
+        --     if not settings.global["unminable_vehicles_teleport_players"].value then
+        --         global.teleported_players = {}
+        --     end
+        --     conditional_events()
+        -- end
+        -- if event.setting == "unminable_vehicles_prevent_rotation" then
+        --     conditional_events()
+        -- end
+        -- if event.setting == "unminable_vehicles_make_unminable" then
+        --     update_vehicles( not settings.global["unminable_vehicles_make_unminable"].value )
+        --     conditional_events()
+        -- end
+    end)
+    if err then
+        log("ModuleInserter: Error occured")
+        log(serpent.block(err))
+    end
+end
+script.on_event(defines.events.on_runtime_mod_setting_changed, on_runtime_mod_setting_changed)
 
 script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_gui_checked_state_changed, on_gui_click)
