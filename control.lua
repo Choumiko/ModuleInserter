@@ -1,52 +1,18 @@
 require "__core__/lualib/util"
 local v = require "__ModuleInserter__/semver"
-DEBUG = false --luacheck: allow defined top
 
-function debugDump(var, force) --luacheck: allow defined top
-    if false or force then
-        for _, player in pairs(game.players) do
-            local msg
-            if type(var) == "string" then
-                msg = var
-            else
-                msg = serpent.dump(var, {name="var", comment=false, sparse=false, sortkeys=true})
-            end
-            player.print(msg)
-        end
-    end
-end
-
-function saveVar(var, name) --luacheck: allow defined top
-    var = var or global
-    local n = name or ""
-    game.write_file("module"..n..".lua", serpent.block(var, {name="global"}))
-end
-
+local debugDump = require "__ModuleInserter__/lib_control".debugDump
+local saveVar = require "__ModuleInserter__/lib_control".saveVar
+local count_keys = require "__ModuleInserter__/lib_control".count_keys
 local GUI = require "__ModuleInserter__/gui"
 
-MOD_NAME = "ModuleInserter" --luacheck: allow defined top
-
-typeToSlot = {} --luacheck: allow defined top
-typeToSlot.lab = defines.inventory.lab_modules
-typeToSlot["assembling-machine"] = defines.inventory.assembling_machine_modules
-typeToSlot["mining-drill"] = defines.inventory.mining_drill_modules
-typeToSlot["furnace"] = defines.inventory.furnace_modules
-typeToSlot["rocket-silo"] = defines.inventory.assembling_machine_modules
-typeToSlot["beacon"] = defines.inventory.beacon_modules
+local MOD_NAME = "ModuleInserter"
 
 local function entityKey(ent)
     if ent.position and ent.direction then
         return ent.position.x..":"..ent.position.y--..":"..ent.direction
     end
     return false
-end
-
-function count_keys(hashmap) --luacheck: allow defined top
-    local result = 0
-    for _, _ in pairs(hashmap) do
-        result = result + 1
-    end
-    return result
 end
 
 local _productivity = {}
@@ -171,8 +137,8 @@ local function on_player_selected_area(event)
                             end
                         end
                     end
-
-                    local contents = entity.get_inventory(typeToSlot[entity.type]).get_contents()
+                    local module_inventory = entity.get_module_inventory()
+                    local contents = module_inventory and module_inventory.get_contents()
                     if valid_modules and not util.table.compare(cTable,contents) then
                         -- proxy entity that the robots fly to
                         local new_entity = {
@@ -540,7 +506,7 @@ script.on_event(defines.events.on_robot_built_entity, function(event)
                 local modules = origEntity.modules
                 origEntity = origEntity.entity
                 --debugDump(modules,true)
-                local inventory = origEntity.get_inventory(typeToSlot[origEntity.type])
+                local inventory = origEntity.get_module_inventory()
                 local contents = inventory.get_contents()
                 -- remove all modules first
                 for k, amount in pairs(contents) do

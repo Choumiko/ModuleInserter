@@ -1,3 +1,6 @@
+--local saveVar = require "__ModuleInserter__/lib_control".saveVar
+local count_keys = require "__ModuleInserter__/lib_control".count_keys
+
 local GUI = {}
 GUI.left = "choumiko-left"
 
@@ -166,15 +169,9 @@ function GUI.open_frame(player, tmp_config)
         name = "module-inserter-clear-all",
         caption = {"module-inserter-config-button-clear-all"}
     }
-    if DEBUG then
-        button_grid.add{
-            type="button",
-            name = "module-inserter-debug",
-            caption = "D"
-        }
-    else
-        button_grid.add{type="label", caption=""}
-    end
+
+    button_grid.add{type="label", caption=""}
+
     button_grid.add{
         type = "button",
         name = "module-inserter-save-as",
