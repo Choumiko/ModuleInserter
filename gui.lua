@@ -321,7 +321,7 @@ function GUI.display_message(frame, storage, message)
     local error_label = frame[label_name]
     if not error_label then return end
 
-    if message ~= "---" then
+    if message ~= "---" and not type(message) == "table" then
         message = {message}
     end
     error_label.caption = message
@@ -331,7 +331,8 @@ function GUI.set_rule(player, index, proto, element)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
-    if not frame or not global["config-tmp"][player.index] then return end
+    local config_tmp = global["config-tmp"][player.index]
+    if not frame or not config_tmp then return end
 
     if proto and (not proto.module_inventory_size or proto.module_inventory_size == 0) then
         GUI.display_message(frame, false, "module-inserter-item-no-slots")
@@ -341,8 +342,8 @@ function GUI.set_rule(player, index, proto, element)
 
     local name = proto and proto.name
     if name then
-        for i = 1, #global["config-tmp"][player.index] do
-            if index ~= i and global["config-tmp"][player.index][i].from == name then
+        for i = 1, #config_tmp do
+            if index ~= i and config_tmp[i].from == name then
                 GUI.display_message(frame, false, "module-inserter-item-already-set")
                 element.elem_value = nil
                 --saveVar(global, "test")
@@ -351,12 +352,12 @@ function GUI.set_rule(player, index, proto, element)
         end
     end
 
-    if name ~= global["config-tmp"][player.index][index].from then
-        global["config-tmp"][player.index][index].to = {}
+    if name ~= config_tmp[index].from then
+        config_tmp[index].to = {}
     end
-    global["config-tmp"][player.index][index].from = name
+    config_tmp[index].from = name
     local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
-    local sprite = global["config-tmp"][player.index][index].from or nil
+    local sprite = config_tmp[index].from or nil
     local tooltip = proto and proto.localised_name or {"module-inserter-choose-assembler"}
 
     local choose_button = ruleset_grid["module-inserter-from-" .. index]
@@ -370,16 +371,18 @@ function GUI.set_modules(player, index, slot, proto)
     local left = GUI.get_left_frame(player)
     if not left then return end
     local frame = left["module-inserter-config-frame"]
-    if not frame or not global["config-tmp"][player.index] then return end
+    local config_tmp = global["config-tmp"][player.index]
+    if not frame or not config_tmp then return end
 
-    local config = global["config-tmp"][player.index][index]
+    local config = config_tmp[index]
     local modules = type(config.to) == "table" and config.to or {}
 
     if proto and proto.type == "module" then
+        local entity_proto = game.entity_prototypes[config.from]
         local itemEffects = proto.module_effects
-        if game.entity_prototypes[config.from].type == "beacon" and itemEffects and itemEffects.productivity then
-            if not game.item_prototypes["module-inserter-beacon"] and itemEffects.productivity ~= 0 then
-                GUI.display_message(frame,false,"module-inserter-no-productivity-beacon")
+        if entity_proto.type == "beacon" and itemEffects and itemEffects.productivity then
+            if itemEffects.productivity ~= 0 and not entity_proto.allowed_effects['productivity'] then
+                GUI.display_message(frame,false,{"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name})
                 modules[slot] = false
             end
         else
@@ -391,7 +394,7 @@ function GUI.set_modules(player, index, slot, proto)
     --     GUI.display_message(frame,false,"module-inserter-item-no-module")
     --     return
     end
-    global["config-tmp"][player.index][index].to = modules
+    config.to = modules
     --saveVar(global, "test2")
     GUI.update_modules(player, index)
 end

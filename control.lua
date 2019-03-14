@@ -91,9 +91,9 @@ local function on_player_selected_area(event)
         end
 
         local config = global["config"][player.index]
-
+        --player.print("Entities: " .. #event.entities)
         for _, entity in pairs(event.entities) do
-
+            --log(serpent.block({t=entity.type, n=entity.name, g= entity.type == "entity-ghost" and entity.ghost_name}))
             -- Check if entity is valid and stored in config as a source.
             local index
             for i = 1, #config do
@@ -115,6 +115,7 @@ local function on_player_selected_area(event)
                     local cTable = {}
                     local valid_modules = true
                     local recipe = entity.type == "assembling-machine" and entity.get_recipe()
+                    local entity_proto = game.entity_prototypes[entity.name]
                     for _, module in pairs(modules) do
                         if module then
                             if not cTable[module] then
@@ -126,12 +127,12 @@ local function on_player_selected_area(event)
                         local prototype = module and game.item_prototypes[module] or false
                         if prototype and prototype.module_effects and prototype.module_effects["productivity"] then
                             if prototype.module_effects["productivity"] ~= 0 then
-                                if entity.type == "beacon" and not game.item_prototypes["module-inserter-beacon"] then
-                                    player.print({"", "Can't insert ", prototype.localised_name, " in ", entity.localised_name})
+                                if entity.type == "beacon" and not entity_proto.allowed_effects['productivity'] then
+                                    player.print({"inventory-restriction.cant-insert-module", prototype.localised_name, entity.localised_name})
                                     valid_modules = false
                                 end
                                 if entity.type == "assembling-machine" and recipe and next(prototype.limitations) and not productivity_allowed(module, recipe.name) then
-                                    player.print({"", "Can't use ", prototype.localised_name, " with recipe: ", recipe.localised_name})
+                                    player.print({"item-limitation." .. prototype.limitation_message_key})
                                     valid_modules = false
                                 end
                             end
@@ -159,7 +160,12 @@ local function on_player_selected_area(event)
                         --                        }
 
                         local key = entityKey(new_entity)
-                        if global.entitiesToInsert[key] then
+                        --log("pre: " .. serpent.block(global.entitiesToInsert))
+                        local eTI = global.entitiesToInsert[key]
+                        if eTI then
+                            if eTI and eTI.ghost and eTI.ghost.valid then
+                                eTI.ghost.destroy()
+                            end
                             global.entitiesToInsert[key] = nil
                             if player.get_item_count("module-inserter-proxy") > 0 then
                                 player.remove_item(proxy)
@@ -169,12 +175,13 @@ local function on_player_selected_area(event)
                         if not global.entitiesToInsert[key] then -- or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
                             local ghost = entity.surface.create_entity(new_entity)
                             global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
-                            ghost.time_to_live = 60*30
+                            ghost.time_to_live = 36288000 --60*60*60*24*7 (7 days)
                             add_ghost(key, {p=player,g=ghost}, game.tick + ghost.time_to_live + 1)
                             if can_insert then
                                 player.get_inventory(defines.inventory.player_main).insert(proxy)
                             end
                         end
+                        --log("post: " .. serpent.block(global.entitiesToInsert))
                     end
                 end
             end
@@ -189,8 +196,9 @@ local function on_player_alt_selected_area(event)
     local status, err = pcall(function()
         if not event.player_index or event.item ~= "module-inserter" then return end
         local player = game.get_player(event.player_index)
-
+        --player.print("Alt entities: " .. #event.entities)
         for _, entity in pairs(event.entities) do
+            --log(serpent.block({t=entity.type, n=entity.name, g=entity.ghost_name}))
             if entity.name == "item-request-proxy" then
                 entity.destroy()
             end
