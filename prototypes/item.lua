@@ -8,12 +8,18 @@ local mi_planner = {
     subgroup = "tool",
     order = "c[automated-construction]-d[module-inserter]",
     stack_size = 1,
+    stackable = false,
     selection_color = { r = 0, g = 1, b = 0 },
     alt_selection_color = { r = 0, g = 0, b = 1 },
     selection_mode = {"same-force", "buildable-type"},
     alt_selection_mode = {"same-force", "any-entity"},
     selection_cursor_box_type = "copy",
-    alt_selection_cursor_box_type = "copy"
+    alt_selection_cursor_box_type = "copy",
+    entity_type_filters = {"mining-drill", "furnace", "assembling-machine", "lab", "beacon", "rocket-silo", "module-inserter-proxy"},
+    entity_filter_mode = "whitelist",
+    alt_entity_filters = {"item-request-proxy", "module-inserter-proxy"},
+    alt_entity_filter_mode = "whitelist",
+    --show_in_library = true
 }
 
 --Error while loading item prototype "module-inserter" (selection-tool): Missing selection_mode in module-inserter item definition.
