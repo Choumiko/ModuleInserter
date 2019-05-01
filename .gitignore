@@ -3,3 +3,7 @@ build/*
 factorio_mods
 /.buildpath
 /.project
+gui.xcf
+gui2.xcf
+module-inserter.xcf
+graphics/gui.png2

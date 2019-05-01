@@ -105,7 +105,7 @@ local function on_player_selected_area(event)
 
             local proxy = {name="module-inserter-proxy", count=1}
 
-            local can_insert = player.get_inventory(defines.inventory.player_main).can_insert(proxy)
+            local can_insert = player.get_main_inventory().can_insert(proxy)
 
             if index and can_insert then
                 if entity.type == "assembling-machine" and not entity.get_recipe() then
@@ -144,7 +144,7 @@ local function on_player_selected_area(event)
                         -- proxy entity that the robots fly to
                         local new_entity = {
                             name = "entity-ghost",
-                            inner_name = "module-inserter-proxy",
+                            ghost_name = "module-inserter-proxy",
                             position = entity.position,
                             direction = entity.direction,
                             force = entity.force
@@ -178,7 +178,7 @@ local function on_player_selected_area(event)
                             ghost.time_to_live = 36288000 --60*60*60*24*7 (7 days)
                             add_ghost(key, {p=player,g=ghost}, game.tick + ghost.time_to_live + 1)
                             if can_insert then
-                                player.get_inventory(defines.inventory.player_main).insert(proxy)
+                                player.get_main_inventory().insert(proxy)
                             end
                         end
                         --log("post: " .. serpent.block(global.entitiesToInsert))
@@ -303,10 +303,9 @@ local function init_global()
     global.removeTicks = global.removeTicks or {}
     global["config"] = global["config"] or {}
     global["config-tmp"] = global["config-tmp"] or {}
-    global["storage"] = global["storage"] or {}
+    global.storage = global.storage or {}
     global.nameToSlots = global.nameToSlots or {}
     global.settings = global.settings or {}
-    global.storage = global.storage or {}
 end
 
 local function init_player(player)
@@ -511,34 +510,36 @@ script.on_event(defines.events.on_robot_built_entity, function(event)
             local origEntity = global.entitiesToInsert[entityKey(entity)]
             if origEntity and origEntity.entity.valid then
                 local player = origEntity.player
-                local modules = origEntity.modules
-                origEntity = origEntity.entity
-                --debugDump(modules,true)
-                local inventory = origEntity.get_module_inventory()
-                local contents = inventory.get_contents()
-                -- remove all modules first
-                for k, amount in pairs(contents) do
-                    for _ = 1, amount do
-                        if player.can_insert{name=k,count=1} then
-                            inventory.remove{name=k, count=1}
-                            player.insert{name=k, count=1}
+                if player and player.valid then
+                    local modules = origEntity.modules
+                    origEntity = origEntity.entity
+                    --debugDump(modules,true)
+                    local inventory = origEntity.get_module_inventory()
+                    local contents = inventory.get_contents()
+                    -- remove all modules first
+                    for k, amount in pairs(contents) do
+                        for _ = 1, amount do
+                            if player.can_insert{name=k,count=1} then
+                                inventory.remove{name=k, count=1}
+                                player.insert{name=k, count=1}
+                            end
                         end
                     end
-                end
-                if type(modules) == "table" then
-                    local logisticsNetwork = origEntity.surface.find_logistic_network_by_position(origEntity.position, origEntity.force.name)
-                    for _, module in pairs(modules) do
-                        if module then
-                            if inventory.can_insert{name = module, count = 1} then
-                                if player.get_item_count(module) > 0 then
-                                    inventory.insert{name = module, count = 1}
-                                    player.remove_item{name = module, count = 1}
-                                    --inventory.insert{name = module, count = player.remove_item{name= module, count = 1}}
-                                else
-                                    --check logisticsnetwork
-                                    if logisticsNetwork and logisticsNetwork.get_item_count(module) > 0 then
+                    if type(modules) == "table" then
+                        local logisticsNetwork = origEntity.surface.find_logistic_network_by_position(origEntity.position, origEntity.force.name)
+                        for _, module in pairs(modules) do
+                            if module then
+                                if inventory.can_insert{name = module, count = 1} then
+                                    if player.get_item_count(module) > 0 then
                                         inventory.insert{name = module, count = 1}
-                                        logisticsNetwork.remove_item{name = module, count = 1}
+                                        player.remove_item{name = module, count = 1}
+                                        --inventory.insert{name = module, count = player.remove_item{name= module, count = 1}}
+                                    else
+                                        --check logisticsnetwork
+                                        if logisticsNetwork and logisticsNetwork.get_item_count(module) > 0 then
+                                            inventory.insert{name = module, count = 1}
+                                            logisticsNetwork.remove_item{name = module, count = 1}
+                                        end
                                     end
                                 end
                             end
