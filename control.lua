@@ -273,31 +273,6 @@ local function remove_invalid_items()
     end
 end
 
-local function update_gui(destroy)
-    local status, err = pcall(function()
-        for _, player in pairs(game.players) do
-            if player.valid then
-                if destroy and player.gui.top["module-inserter-config-button"] then
-                    player.gui.top["module-inserter-config-button"].destroy()
-                end
-                local frame = player.gui.left["module-inserter-config-frame"]
-                if frame and frame.valid then
-                    frame.destroy()
-                end
-                local storage = player.gui.left["module-inserter-storage-frame"]
-                if storage and storage.valid then
-                    storage.destroy()
-                end
-                GUI.destroy(player)
-            end
-            GUI.init(player)
-        end
-    end)
-    if not status then
-        debugDump(err, true)
-    end
-end
-
 local function init_global()
     global.entitiesToInsert = global.entitiesToInsert or {}
     global.removeTicks = global.removeTicks or {}
@@ -306,6 +281,8 @@ local function init_global()
     global.storage = global.storage or {}
     global.nameToSlots = global.nameToSlots or {}
     global.settings = global.settings or {}
+
+    global.gui_elements = global.gui_elements or {}
 end
 
 local function init_player(player)
@@ -313,6 +290,7 @@ local function init_player(player)
     global.settings[i] = global.settings[i] or {}
     global.config[i] = global.config[i] or {}
     global.storage[i] = global.storage[i] or {}
+    global.gui_elements[i] = global.gui_elements[i] or {}
     -- not setting config-tmp intentionally
     --global["config-tmp"][i] = global["config-tmp"][i] or {}
     GUI.init(player)
@@ -379,13 +357,11 @@ local function on_configuration_changed(data)
         if not oldVersion then
             init_global()
             init_players()
-            update_gui(true)
         else
             oldVersion = v(oldVersion)
             if oldVersion < v"0.1.3" then
                 init_global()
                 init_players()
-                update_gui(true)
             end
             if oldVersion < v"0.1.34" then
                 local tmp = {}
@@ -422,10 +398,6 @@ local function on_configuration_changed(data)
 
             if oldVersion < v"0.2.2" then
                 global.productivityAllowed = nil
-            end
-
-            if oldVersion < v"0.2.3" then
-                update_gui(true)
             end
 
             if oldVersion < v"4.0.1" then
@@ -467,8 +439,6 @@ local function on_configuration_changed(data)
                         end
                     end
                 end
-                update_gui(true)
-                --saveVar(global, "postUpdate")
             end
 
             if oldVersion < v"4.0.4" then
@@ -484,6 +454,13 @@ local function on_configuration_changed(data)
                         global.storage[i] = nil
                         global["config-tmp"][i] = nil
                     end
+                end
+            end
+
+            if oldVersion < v'4.0.6' then
+                init_global()
+                for _, player in pairs(game.players) do
+                    init_player(player)
                 end
             end
             global.version = tostring(newVersion) --do i really need that?
@@ -564,7 +541,7 @@ local function on_gui_click(event)
         --log("click " .. element.name)
         local player = game.get_player(event.player_index)
 
-        if element.name == "module-inserter-config-button" then
+        if element.name == "module_inserter_config_button" then
             GUI.open_frame(player)
         elseif element.name == "module-inserter-apply" then
             GUI.save_changes(player)
@@ -706,7 +683,6 @@ remote.add_interface("mi",
         init = function()
             init_global()
             init_players()
-            update_gui(true)
         end,
         cleanup = function()
             cleanup(true)

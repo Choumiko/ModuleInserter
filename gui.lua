@@ -1,43 +1,32 @@
+local mod_gui = require '__core__/lualib/mod-gui'
 --local saveVar = require "__ModuleInserter__/lib_control".saveVar
 local count_keys = require "__ModuleInserter__/lib_control".count_keys
 
 local GUI = {}
-GUI.left = "choumiko-left"
-
-GUI.get_left_frame = function(player)
-    local left = player.gui.left[GUI.left]
-    if left and left.valid then
-        return left
-    end
-end
-
-GUI.get_or_create_left_frame = function(player)
-    return GUI.get_left_frame(player) or player.gui.left.add{type = "flow", name = GUI.left, direction = "horizontal"}
-end
 
 function GUI.init(player, after_research)
-    if not player.gui.top["module-inserter-config-button"]
-        and (player.force.technologies["construction-robotics"].researched or after_research) then
-        player.gui.top.add{
+    local button = global.gui_elements[player.index].main_button
+    if (not (button and button.valid)) and (player.force.technologies["construction-robotics"].researched or after_research) then
+        button = mod_gui.get_button_flow(player).add{
             type = "sprite-button",
-            name = "module-inserter-config-button",
+            name = "module_inserter_config_button",
             style = "module-inserter-button",
             sprite = "technology/modules"
         }
     end
-    GUI.get_or_create_left_frame(player)
+    global.gui_elements[player.index].main_button = button
 end
 
 function GUI.destroy(player)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
+    local frame = global.gui_elements[player.index].config_frame
     if frame and frame.valid then
         frame.destroy()
+        global.gui_elements[player.index].config_frame = nil
     end
-    local storage = left["module-inserter-storage-frame"]
+    local storage = global.gui_elements[player.index].preset_frame
     if storage and storage.valid then
         storage.destroy()
+        global.gui_elements[player.index].preset_frame = nil
     end
     global["config-tmp"][player.index] = nil
     if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.index].YARM_old_expando then
@@ -46,26 +35,27 @@ function GUI.destroy(player)
 end
 
 function GUI.refresh(player)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
+    local frame = global.gui_elements[player.index].config_frame
+    local was_opened
     if frame and frame.valid then
         frame.destroy()
+        global.gui_elements[player.index].config_frame = nil
+        was_opened = true
     end
-    local storage = left["module-inserter-storage-frame"]
+    local storage = global.gui_elements[player.index].preset_frame
     if storage and storage.valid then
         storage.destroy()
+        global.gui_elements[player.index].preset_frame = nil
     end
-    if not frame then
-        return
+    if was_opened then
+        GUI.open_frame(player, global["config-tmp"][player.index])
     end
-    GUI.open_frame(player, global["config-tmp"][player.index])
 end
 
 function GUI.open_frame(player, tmp_config)
-    local left = GUI.get_or_create_left_frame(player)
-    local frame = left["module-inserter-config-frame"]
-    if frame then
+    local player_index = player.index
+    local frame = global.gui_elements[player_index].config_frame
+    if frame and frame.valid then
         GUI.destroy(player)
         return
     end
@@ -77,7 +67,7 @@ function GUI.open_frame(player, tmp_config)
     -- We need to copy all items from normal config to temporary config.
     local config_tmp = global["config-tmp"][player.index]
     local config = global["config"][player.index]
-    --FIXME what is this stupditiy?!
+    --TODO: what is this stupditiy?!
     for i = 1, max_config_size do
         if i > #config then
             config_tmp[i] = {from = false, to = {}}
@@ -92,12 +82,15 @@ function GUI.open_frame(player, tmp_config)
         global.settings[player.index].YARM_old_expando = remote.call("YARM", "hide_expando", player.index)
     end
     -- Now we can build the GUI
+    local left = mod_gui.get_frame_flow(player)
     frame = left.add{
         type = "frame",
         caption = {"module-inserter-config-frame-title"},
         name = "module-inserter-config-frame",
         direction = "vertical"
     }
+    global.gui_elements[player_index].config_frame = frame
+
     local error_label = frame.add{
         type = "label",
         caption = "---",
@@ -190,6 +183,7 @@ function GUI.open_frame(player, tmp_config)
         caption = {"module-inserter-storage-frame-title"},
         direction = "vertical"
     }
+    global.gui_elements[player_index].preset_frame = storage_frame
     storage_frame.style.maximal_height = 596
     storage_frame.style.maximal_width = 500
 
@@ -282,9 +276,8 @@ function GUI.save_changes(player, name)
     end
     global.config[player.index].loaded = name or nil
     --saveVar(global, "saved")
-    local left = GUI.get_left_frame(player)
-    local frame = left["module-inserter-config-frame"]
-    local storage_frame = left["module-inserter-storage-frame"]
+    local frame = global.gui_elements[player.index].config_frame
+    local storage_frame = global.gui_elements[player.index].preset_frame
 
     if frame then
         frame.destroy()
@@ -298,10 +291,8 @@ function GUI.save_changes(player, name)
 end
 
 function GUI.clear_all(player)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
-    if not frame then return end
+    local frame = global.gui_elements[player.index].config_frame
+    if not (frame and frame.valid) then return end
     local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
     global.config[player.index].loaded = nil
     frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
@@ -319,7 +310,7 @@ function GUI.display_message(frame, storage, message)
     label_name = label_name .. "error-label"
 
     local error_label = frame[label_name]
-    if not error_label then return end
+    if not (error_label and error_label.valid) then return end
 
     if message ~= "---" and not type(message) == "table" then
         message = {message}
@@ -328,11 +319,9 @@ function GUI.display_message(frame, storage, message)
 end
 
 function GUI.set_rule(player, index, proto, element)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
+    local frame = global.gui_elements[player.index].config_frame
     local config_tmp = global["config-tmp"][player.index]
-    if not frame or not config_tmp then return end
+    if not (frame and frame.valid and config_tmp) then return end
 
     if proto and (not proto.module_inventory_size or proto.module_inventory_size == 0) then
         GUI.display_message(frame, false, "module-inserter-item-no-slots")
@@ -368,11 +357,9 @@ function GUI.set_rule(player, index, proto, element)
 end
 
 function GUI.set_modules(player, index, slot, proto)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
+    local frame = global.gui_elements[player.index].config_frame
     local config_tmp = global["config-tmp"][player.index]
-    if not frame or not config_tmp then return end
+    if not (frame and frame.valid and config_tmp) then return end
 
     local config = config_tmp[index]
     local modules = type(config.to) == "table" and config.to or {}
@@ -400,9 +387,7 @@ function GUI.set_modules(player, index, slot, proto)
 end
 
 function GUI.update_modules(player, index)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
+    local frame = global.gui_elements[player.index].config_frame
     local slots = global.nameToSlots[global["config-tmp"][player.index][index].from] or 1
     local modules = global["config-tmp"][player.index][index].to
     local flow = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
@@ -421,10 +406,8 @@ function GUI.update_modules(player, index)
 end
 
 function GUI.store(player)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local storage_frame = left["module-inserter-storage-frame"]
-    if not storage_frame then return end
+    local storage_frame = global.gui_elements[player.index].preset_frame
+    if not (storage_frame and storage_frame.valid) then return end
     local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
     local name = textfield.text
     name = string.match(name, "^%s*(.-)%s*$")
@@ -474,12 +457,10 @@ function GUI.store(player)
 end
 
 function GUI.save_as(player)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local storage_frame = left["module-inserter-storage-frame"]
-    local frame = left["module-inserter-config-frame"]
+    local storage_frame = global.gui_elements[player.index].preset_frame
+    local frame = global.gui_elements[player.index].config_frame
 
-    if not storage_frame or not frame then return end
+    if not (storage_frame and storage_frame.valid and frame and frame.valid) then return end
     local textfield = frame["module-inserter-button-grid"]["module-inserter-save-as-text"]
     local name = textfield.text
     name = string.match(name, "^%s*(.-)%s*$")
@@ -500,11 +481,9 @@ function GUI.save_as(player)
 end
 
 function GUI.restore(player, index)
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local frame = left["module-inserter-config-frame"]
-    local storage_frame = left["module-inserter-storage-frame"]
-    if not frame or not storage_frame then return end
+    local frame = global.gui_elements[player.index].config_frame
+    local storage_frame = global.gui_elements[player.index].preset_frame
+    if not (frame and frame.valid and storage_frame and storage_frame.valid) then return end
 
     local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
     local storage_entry = storage_grid["module-inserter-storage-entry-" .. index]
@@ -534,16 +513,14 @@ end
 
 function GUI.remove(player, index)
     if not global["storage"][player.index] then return end
-    local left = GUI.get_left_frame(player)
-    if not left then return end
-    local storage_frame = left["module-inserter-storage-frame"]
-    if not storage_frame then return end
+    local storage_frame = global.gui_elements[player.index].preset_frame
+    if not (storage_frame and storage_frame.valid) then return end
     local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
     local label = storage_grid["module-inserter-storage-entry-" .. index]
     local btn1 = storage_grid["module-inserter-restore-" .. index]
     local btn2 = storage_grid["module-inserter-remove-" .. index]
 
-    if not label or not btn1 or not btn2 then return end
+    if not (label and btn1 and btn2) then return end
 
     local name = string.match(label.caption, "^%s*(.-)%s*$")
     label.destroy()
