@@ -8,13 +8,7 @@ local GUI = require "__ModuleInserter__/gui"
 
 local MOD_NAME = "ModuleInserter"
 
-local function entityKey(ent)
-    if ent.position and ent.direction then
-        return ent.position.x..":"..ent.position.y--..":"..ent.direction
-    end
-    return false
-end
-
+local UPDATE_RATE = 117
 local _productivity = {}
 
 local function productivity_allowed(module, recipe)
@@ -31,68 +25,175 @@ local function productivity_allowed(module, recipe)
     return _productivity[recipe]
 end
 
-local function on_tick(event)
-    if global.removeTicks[event.tick] then
+local function compare_contents(tbl1, tbl2)
+    if tbl1 == tbl2 then return true end
+    for k, value in pairs(tbl1) do
+        if (value ~= tbl2[k]) then return false end
+    end
+    for k, _ in pairs(tbl2) do
+        if tbl1[k] == nil then return false end
+    end
+    return true
+end
+
+local function sort_modules(entity, modules, cTable)
+    log("Sorting modules for " .. entity.name)
+    local inventory = entity.get_module_inventory()
+    local contents = inventory and inventory.get_contents()
+    log({"", "cTable", serpent.block(cTable)})
+    log({"", "contents", serpent.block(contents)})
+    if compare_contents(cTable, contents) then
         local status, err = pcall(function()
-            for key, g in pairs(global.removeTicks[event.tick]) do
-                if not g.g.valid then
-                    if g.p.get_item_count("module-inserter-proxy") > 0 then
-                        g.p.remove_item{name="module-inserter-proxy", count = 1}
-                    end
-                    global.entitiesToInsert[key] = nil
-                    global.removeTicks[event.tick][key] = nil
+            inventory.clear()
+            local insert = inventory.insert
+            for _, module in pairs(modules) do
+                if module then
+                    insert{name = module, count = 1}
                 end
-            end
-            if count_keys(global.removeTicks[event.tick]) == 0 then
-                global.removeTicks[event.tick] = nil
-            end
-            if count_keys(global.removeTicks) == 0 then
-                script.on_event(defines.events.on_tick, nil)
             end
         end)
         if not status then
             debugDump(err, true)
+            inventory.clear()
+            for name, count in pairs(contents) do
+                inventory.insert{name = name, count = count}
+            end
         end
     end
 end
 
-local function add_ghost(key, data, tick)
-    global.removeTicks[tick] = global.removeTicks[tick] or {}
-    global.removeTicks[tick][key] = data
-    script.on_event(defines.events.on_tick, on_tick)
+local function on_tick(event)
+    local tick = event.tick
+    if not global.proxies then global.proxies = {} end
+    local current = global.proxies[tick]
+    if current then
+        local check_tick = tick + UPDATE_RATE
+        local check = global.proxies[check_tick] or {}
+        local entity
+        for k, data in pairs(current) do
+            if data.proxy then
+                entity = (data.target and data.target.valid) and data.target
+                if not data.proxy.valid then
+                    log("Proxy invalid")
+                    if entity then
+                        sort_modules(entity, data.modules, data.cTable)
+                    end
+                else
+                    if entity then
+                        check[k] = data
+                    end
+                    current[k] = nil
+                end
+            end
+        end
+        if next(check) then
+            global.proxies[check_tick] = check
+            --TODO: register on_nth_tick
+        end
+        global.proxies[tick] = nil
+    end
 end
 
-local function remove_ghost(key)
-    local toDelete = false
-    for tick, t in pairs(global.removeTicks) do
-        if t[key] then
-            toDelete = {t=tick, k=key}
-            break
+local function drop_module(entity, name, count, module_inventory, chest, player)--luacheck: ignore
+    if not (chest and chest.valid) then
+        chest = entity.surface.create_entity{
+            name = "module_inserter_pickup",
+            --name = "wooden-chest",
+            position = entity.position,
+            force = entity.force,
+            create_build_effect_smoke = false
+        }
+        if not (chest and chest.valid) then
+            error("Invalid chest")
+        else
+            if player then
+                chest.order_deconstruction(chest.force, player)
+            else
+                chest.order_deconstruction(chest.force)
+            end
         end
     end
-    if toDelete then
-        global.removeTicks[toDelete.t][toDelete.k] = nil
-        if count_keys(global.removeTicks[toDelete.t]) == 0 then
-            global.removeTicks[toDelete.t] = nil
-        end
-        if count_keys(global.removeTicks) == 0 then
-            script.on_event(defines.events.on_tick, nil)
+
+    local stack = {name = name, count = count}
+    --log({"", entity.name, " dropped: ", serpent.line(stack)})
+    stack.count = chest.insert(stack)
+    if module_inventory.remove(stack) ~= count then
+        log("Not all modules removed")
+    end
+    return chest
+end
+
+local function create_request_proxy(entity, modules, desired, proxies, player)
+    local module_inventory = entity.get_module_inventory()
+    if not module_inventory then
+        return proxies
+    end
+
+    local contents = module_inventory.get_contents()
+    local missing = {}
+    local surplus = {}
+    --log({"", entity.name, " contents: ", serpent.line(contents)})
+    --log({"", entity.name, " desired: ", serpent.line(desired)})
+    local diff, chest
+    for name, count in pairs(desired) do
+        diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
+        contents[name] = nil
+        if diff < 0 then
+            missing[name] = -1 * diff
+        elseif diff > 0 then
+            chest = drop_module(entity, name, diff, module_inventory, chest, player)
+            surplus[name] = diff
         end
     end
+    for name, count in pairs(contents) do
+        diff = count - (desired[name] or 0) -- >0: drop, < 0 missing
+        assert(not missing[name] and not surplus[name])
+        if diff < 0 then
+            missing[name] = -1 * diff
+        elseif diff > 0 then
+            chest = drop_module(entity, name, diff, module_inventory, chest, player)
+            surplus[name] = diff
+        end
+    end
+    --log({"", entity.name, " missing: ", serpent.line(missing)})
+    contents = module_inventory.get_contents()
+    local same = compare_contents(desired, contents)
+    if not same then
+        if next(missing)  then
+            local module_proxy = {
+                name = "item-request-proxy",
+                position = entity.position,
+                force = entity.force,
+                target = entity,
+                modules = missing
+            }
+            local ghost = entity.surface.create_entity(module_proxy)--luacheck: ignore
+            proxies[entity.unit_number] = {name = entity.name, proxy = ghost, modules = modules, cTable = desired, target = entity}
+        end
+    else
+        sort_modules(entity, modules, desired)
+    end
+    return proxies
 end
 
 local function on_player_selected_area(event)
     local status, err = pcall(function()
-        if not event.player_index or event.item ~= "module-inserter" then return end
-        local player = game.get_player(event.player_index)
-        if not global["config"][player.index] then
-            global["config"][player.index] = {}
+        if event.item ~= "module-inserter" or not event.player_index then return end
+        local player_index = event.player_index
+        local player = game.get_player(player_index)
+        if not global["config"][player_index] then
+            global["config"][player_index] = {}
             return
         end
 
-        local config = global["config"][player.index]
+        local config = global["config"][player_index]
         --player.print("Entities: " .. #event.entities)
+        local check_tick = event.tick + UPDATE_RATE
+        local proxies = global.proxies[check_tick] or {}
         for _, entity in pairs(event.entities) do
+            if not global.nameToSlots[entity.name] then
+                goto continue
+            end
             --log(serpent.block({t=entity.type, n=entity.name, g= entity.type == "entity-ghost" and entity.ghost_name}))
             -- Check if entity is valid and stored in config as a source.
             local index
@@ -103,88 +204,46 @@ local function on_player_selected_area(event)
                 end
             end
 
-            local proxy = {name="module-inserter-proxy", count=1}
-
-            local can_insert = player.get_main_inventory().can_insert(proxy)
-
-            if index and can_insert then
-                if entity.type == "assembling-machine" and not entity.get_recipe() then
-                    player.print("Can't insert modules in assembler without recipe")
-                else
-                    local modules = util.table.deepcopy(config[index].to)
-                    local cTable = {}
-                    local valid_modules = true
-                    local recipe = entity.type == "assembling-machine" and entity.get_recipe()
-                    local entity_proto = game.entity_prototypes[entity.name]
-                    for _, module in pairs(modules) do
-                        if module then
-                            if not cTable[module] then
-                                cTable[module] = 1
-                            else
-                                cTable[module] = cTable[module] + 1
-                            end
+            if not index then
+                goto continue
+            end
+            if entity.type == "assembling-machine" and not entity.get_recipe() then
+                player.print("Can't insert modules in assembler without recipe")
+                goto continue
+            end
+            local modules = util.table.deepcopy(config[index].to)
+            local cTable = {}
+            local valid_modules = true
+            local recipe = entity.type == "assembling-machine" and entity.get_recipe()
+            local entity_proto = game.entity_prototypes[entity.name]
+            for _, module in pairs(modules) do
+                if module then
+                    cTable[module] = (cTable[module] or 0) + 1
+                end
+                local prototype = module and game.item_prototypes[module] or false
+                if prototype and prototype.module_effects and prototype.module_effects["productivity"] then
+                    if prototype.module_effects["productivity"] ~= 0 then
+                        if entity.type == "beacon" and not entity_proto.allowed_effects['productivity'] then
+                            player.print({"inventory-restriction.cant-insert-module", prototype.localised_name, entity.localised_name})
+                            valid_modules = false
                         end
-                        local prototype = module and game.item_prototypes[module] or false
-                        if prototype and prototype.module_effects and prototype.module_effects["productivity"] then
-                            if prototype.module_effects["productivity"] ~= 0 then
-                                if entity.type == "beacon" and not entity_proto.allowed_effects['productivity'] then
-                                    player.print({"inventory-restriction.cant-insert-module", prototype.localised_name, entity.localised_name})
-                                    valid_modules = false
-                                end
-                                if entity.type == "assembling-machine" and recipe and next(prototype.limitations) and not productivity_allowed(module, recipe.name) then
-                                    player.print({"item-limitation." .. prototype.limitation_message_key})
-                                    valid_modules = false
-                                end
-                            end
+                        if entity.type == "assembling-machine" and recipe and next(prototype.limitations) and not productivity_allowed(module, recipe.name) then
+                            player.print({"item-limitation." .. prototype.limitation_message_key})
+                            valid_modules = false
                         end
-                    end
-                    local module_inventory = entity.get_module_inventory()
-                    local contents = module_inventory and module_inventory.get_contents()
-                    if valid_modules and not util.table.compare(cTable,contents) then
-                        -- proxy entity that the robots fly to
-                        local new_entity = {
-                            name = "entity-ghost",
-                            ghost_name = "module-inserter-proxy",
-                            position = entity.position,
-                            direction = entity.direction,
-                            force = entity.force
-                        }
-                        --game.player.surface.create_entity{name = "item-request-proxy", position = game.player.selected.position,
-                        -- force = game.player.force, target = game.player.selected, modules={{item="speed-module-3", count=2}}}
-                        --                        local module_proxy = {
-                        --                          name = "item-request-proxy",
-                        --                          position = game.player.selected.position,
-                        --                          force = game.player.force,
-                        --                          target = game.player.selected,
-                        --                          request_filters = {count=2, item="productivity-module-3"}
-                        --                        }
-
-                        local key = entityKey(new_entity)
-                        --log("pre: " .. serpent.block(global.entitiesToInsert))
-                        local eTI = global.entitiesToInsert[key]
-                        if eTI then
-                            if eTI and eTI.ghost and eTI.ghost.valid then
-                                eTI.ghost.destroy()
-                            end
-                            global.entitiesToInsert[key] = nil
-                            if player.get_item_count("module-inserter-proxy") > 0 then
-                                player.remove_item(proxy)
-                            end
-                            remove_ghost(key)
-                        end
-                        if not global.entitiesToInsert[key] then -- or (global.entitiesToInsert[key].ghost and not global.entitiesToInsert[key].ghost.valid) then
-                            local ghost = entity.surface.create_entity(new_entity)
-                            global.entitiesToInsert[key] = {entity = entity, player = player, modules = modules, ghost = ghost}
-                            ghost.time_to_live = 36288000 --60*60*60*24*7 (7 days)
-                            add_ghost(key, {p=player,g=ghost}, game.tick + ghost.time_to_live + 1)
-                            if can_insert then
-                                player.get_main_inventory().insert(proxy)
-                            end
-                        end
-                        --log("post: " .. serpent.block(global.entitiesToInsert))
                     end
                 end
             end
+
+            if valid_modules then
+                proxies = create_request_proxy(entity, modules, cTable, proxies, player)
+            end
+            ::continue::
+        end
+        if next(proxies) then
+            global.proxies[check_tick] = proxies
+        else
+            global.proxies[check_tick] = nil
         end
     end)
     if not status then
@@ -194,26 +253,23 @@ end
 
 local function on_player_alt_selected_area(event)
     local status, err = pcall(function()
-        if not event.player_index or event.item ~= "module-inserter" then return end
-        local player = game.get_player(event.player_index)
+        if not event.item == "module-inserter" then return end
         --player.print("Alt entities: " .. #event.entities)
         for _, entity in pairs(event.entities) do
             --log(serpent.block({t=entity.type, n=entity.name, g=entity.ghost_name}))
             if entity.name == "item-request-proxy" then
+                for _, proxies in pairs(global.proxies) do
+                    if proxies[entity.unit_number] then
+                        proxies[entity.unit_number] = nil
+                    end
+                end
                 entity.destroy()
             end
-            if entity.valid and entity.type == "entity-ghost" and entity.ghost_name == "module-inserter-proxy" then
-                --log(entity.ghost_name)
-
-                local key = entityKey(entity)
-                if global.entitiesToInsert[key] then
-                    global.entitiesToInsert[key] = nil
-                    if player.get_item_count("module-inserter-proxy") > 0 then
-                        player.remove_item{name="module-inserter-proxy", count=1}
-                    end
-                    remove_ghost(key)
-                    entity.destroy()
-                end
+        end
+        for tick, proxies in pairs(global.proxies) do
+            if not next(proxies) then
+                global.proxies[tick] = nil
+                --TODO: unregister on_nth_tick
             end
         end
     end)
@@ -275,7 +331,7 @@ end
 
 local function init_global()
     global.entitiesToInsert = global.entitiesToInsert or {}
-    global.removeTicks = global.removeTicks or {}
+    global.proxies = global.proxies or {}
     global["config"] = global["config"] or {}
     global["config-tmp"] = global["config-tmp"] or {}
     global.storage = global.storage or {}
@@ -309,7 +365,7 @@ end
 
 local function on_load()
     -- set metatables, register conditional event handlers, local references to global
-    if count_keys(global.removeTicks) == 0 then
+    if table_size(global.proxies) == 0 then
         script.on_event(defines.events.on_tick, nil)
     else
         script.on_event(defines.events.on_tick, on_tick)
@@ -346,10 +402,10 @@ end
 
 -- run once
 local function on_configuration_changed(data)
-    if not data or not data.mod_changes then
+    if not data then
         return
     end
-    if data.mod_changes[MOD_NAME] then
+    if data.mod_changes and data.mod_changes[MOD_NAME] then
         local newVersion = data.mod_changes[MOD_NAME].new_version
         newVersion = v(newVersion)
         local oldVersion = data.mod_changes[MOD_NAME].old_version
@@ -359,45 +415,10 @@ local function on_configuration_changed(data)
             init_players()
         else
             oldVersion = v(oldVersion)
-            if oldVersion < v"0.1.3" then
+            if oldVersion < v"0.2.3" then
+                global = {}
                 init_global()
                 init_players()
-            end
-            if oldVersion < v"0.1.34" then
-                local tmp = {}
-                tmp.config = util.table.deepcopy(global["config"])
-                tmp["config-tmp"] = util.table.deepcopy(global["config-tmp"])
-                tmp.storage  = util.table.deepcopy(global["storage"])
-                tmp.settings = util.table.deepcopy(global.settings)
-                for k, config in pairs(tmp) do
-                    global[k] = {}
-                    for _, player in pairs(game.players) do
-                        if player.name and v[player.name] then
-                            global[k][player.index] = config[player.name]
-                        end
-                    end
-                end
-                cleanup(true)
-            end
-            if oldVersion < v"0.1.4" then
-                for _, ent in pairs(global.entitiesToInsert) do
-                    if ent.ghost and ent.ghost.valid then
-                        ent.ghost.destroy()
-                    end
-                end
-                global.entitiesToInsert = {}
-                global.removeTicks = {}
-                for _, p in pairs(game.players) do
-                    local c = p.get_item_count("module-inserter-proxy")
-                    if c > 0 then
-                        p.remove_item{name = "module-inserter-proxy", count = c}
-                    end
-                end
-                on_load()
-            end
-
-            if oldVersion < v"0.2.2" then
-                global.productivityAllowed = nil
             end
 
             if oldVersion < v"4.0.1" then
@@ -444,9 +465,9 @@ local function on_configuration_changed(data)
             if oldVersion < v"4.0.4" then
                 --just to make extra sure all is set
                 init_global()
-                init_players()
                 for i, player in pairs(game.players) do
                     if player and player.valid then
+                        init_player(player)
                         GUI.refresh(player)
                     else
                         global.config[i] = nil
@@ -457,17 +478,35 @@ local function on_configuration_changed(data)
                 end
             end
 
-            if oldVersion < v'4.0.6' then
+            if oldVersion < v'4.1.0' then
                 init_global()
-                for _, player in pairs(game.players) do
-                    init_player(player)
+                global.removeTicks = nil
+                local check_tick = game.tick + UPDATE_RATE
+                local proxies = global.proxies[check_tick] or {}
+                local cTable, player
+                for key, origEntity in pairs(global.entitiesToInsert) do
+                    if origEntity.entity and origEntity.entity.valid and type(origEntity.modules) == "table" then
+                        player = origEntity.player and origEntity.player.valid and origEntity.player
+                        cTable = {}
+                        for _, module in pairs(origEntity.modules) do
+                            if module then
+                                cTable[module] = (cTable[module] or 0) + 1
+                            end
+                        end
+                        proxies = create_request_proxy(origEntity.entity, origEntity.modules, cTable, proxies, player)
+                    end
+                    global.entitiesToInsert[key] = nil
                 end
+                global.proxies[check_tick] = proxies
+                init_players(player)
+                saveVar(global, "post")
             end
             global.version = tostring(newVersion) --do i really need that?
         end
     end
     getMetaItemData()
     remove_invalid_items()
+    on_load()
     --check for other mods
 end
 
@@ -479,61 +518,6 @@ script.on_init(on_init)
 script.on_load(on_load)
 script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_player_created, on_player_created)
-
-script.on_event(defines.events.on_robot_built_entity, function(event)
-    local status, err = pcall(function()
-        local entity = event.created_entity
-        if entity.name == "module-inserter-proxy" then
-            local origEntity = global.entitiesToInsert[entityKey(entity)]
-            if origEntity and origEntity.entity.valid then
-                local player = origEntity.player
-                if player and player.valid then
-                    local modules = origEntity.modules
-                    origEntity = origEntity.entity
-                    --debugDump(modules,true)
-                    local inventory = origEntity.get_module_inventory()
-                    local contents = inventory.get_contents()
-                    -- remove all modules first
-                    for k, amount in pairs(contents) do
-                        for _ = 1, amount do
-                            if player.can_insert{name=k,count=1} then
-                                inventory.remove{name=k, count=1}
-                                player.insert{name=k, count=1}
-                            end
-                        end
-                    end
-                    if type(modules) == "table" then
-                        local logisticsNetwork = origEntity.surface.find_logistic_network_by_position(origEntity.position, origEntity.force.name)
-                        for _, module in pairs(modules) do
-                            if module then
-                                if inventory.can_insert{name = module, count = 1} then
-                                    if player.get_item_count(module) > 0 then
-                                        inventory.insert{name = module, count = 1}
-                                        player.remove_item{name = module, count = 1}
-                                        --inventory.insert{name = module, count = player.remove_item{name= module, count = 1}}
-                                    else
-                                        --check logisticsnetwork
-                                        if logisticsNetwork and logisticsNetwork.get_item_count(module) > 0 then
-                                            inventory.insert{name = module, count = 1}
-                                            logisticsNetwork.remove_item{name = module, count = 1}
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-                local key = entityKey(entity)
-                global.entitiesToInsert[key] = nil
-                remove_ghost(key)
-            end
-            entity.destroy()
-        end
-    end)
-    if not status then
-        debugDump(err, true)
-    end
-end)
 
 local function on_gui_click(event)
     local status, err = pcall(function()
@@ -547,19 +531,6 @@ local function on_gui_click(event)
             GUI.save_changes(player)
         elseif element.name == "module-inserter-clear-all" then
             GUI.clear_all(player)
-        elseif element.name == "module-inserter-debug" then
-            --saveVar(global,"debugButton")
-            local c = 0
-            for _, _ in pairs(global.entitiesToInsert) do
-                c = c+1
-            end
-            debugDump("#Entities "..c,true)
-            c = 0
-            for _,k in pairs(global.removeTicks) do
-                c = c+#k
-            end
-            debugDump("#config "..#global.config[player.index],true)
-            debugDump("#Remove "..c,true)
         elseif element.name  == "module-inserter-storage-store" then
             GUI.store(player)
         elseif element.name == "module-inserter-save-as" then
@@ -649,7 +620,7 @@ end
 local function on_runtime_mod_setting_changed(event)
     local _, err = pcall(function()
         --log(serpent.block(event))
-        if event.setting_type == "runtime-per-user" and event.setting == "module_inserter_config_size" then
+        if event.setting == "module_inserter_config_size" then
             --probably want to in/decrease config and config-tmp and refresh the players ui if it is opened
             GUI.refresh(game.get_player(event.player_index))
         end
@@ -664,7 +635,6 @@ script.on_event(defines.events.on_runtime_mod_setting_changed, on_runtime_mod_se
 script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_gui_checked_state_changed, on_gui_click)
 script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
-
 
 script.on_event(defines.events.on_research_finished, function(event)
     if event.research.name == 'construction-robotics' then

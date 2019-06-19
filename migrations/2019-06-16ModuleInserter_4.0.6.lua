@@ -20,3 +20,4 @@ for _, player in pairs(game.players) do
         storage.destroy()
     end
 end
+global.proxies = global.proxies or {}

@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 4.1.0
+Date: 20. 06. 2019
+  Changes:
+    - Modules are now requested vanilla style
+    - Removed modules are placed in a chest at the assemblers location that will be deconstructed,
+      no more teleporting the modules to the player immediately
+    - Selecting assemblers that already have all requested modules will sort them in the defined order
+    - Moved gui button and frames to mod_gui flows
+---------------------------------------------------------------------------------------------------
 Version: 4.0.5
 Date: 01. 05. 2019
   Changes:
