@@ -88,6 +88,7 @@ function GUI.open_frame(player, tmp_config)
         name = "module-inserter-config-frame",
         direction = "vertical"
     }
+    frame.style.maximal_height = 596
     global.gui_elements[player_index].config_frame = frame
 
     local error_label = frame.add{
@@ -218,7 +219,7 @@ function GUI.open_frame(player, tmp_config)
         type = "scroll-pane",
         name = "module-inserter-storage-pane",
     }
-
+    --scroll_pane.style.maximal_height = 480 * (1 / player.display_scale)
     local storage_table = storage_pane.add{
         type = "table",
         column_count = 3,
