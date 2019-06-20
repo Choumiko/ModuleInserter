@@ -55,3 +55,5 @@ install_mod:
 	fi;
 tag:
 	git tag -f $(VERSION_STRING)
+	git push --tags
+	git push
