@@ -1,6 +1,5 @@
 local mod_gui = require '__core__/lualib/mod-gui'
 --local saveVar = require "__ModuleInserter__/lib_control".saveVar
-local count_keys = require "__ModuleInserter__/lib_control".count_keys
 
 local GUI = {}
 
@@ -430,7 +429,7 @@ function GUI.store(player)
     end
 
     local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
-    local index = count_keys(global["storage"][player.index]) + 1
+    local index = table_size(global["storage"][player.index]) + 1
 
     storage_grid.add{
         type = "label",

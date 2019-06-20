@@ -18,17 +18,8 @@ local function saveVar(var, name)
     game.write_file("module"..n..".lua", serpent.block(var, {name="global"}))
 end
 
-local function count_keys(hashmap)
-    local result = 0
-    for _, _ in pairs(hashmap) do
-        result = result + 1
-    end
-    return result
-end
-
 local M = {}
 M.debugDump = debugDump
 M.saveVar = saveVar
-M.count_keys = count_keys
 
 return M

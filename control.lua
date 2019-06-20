@@ -3,7 +3,6 @@ local v = require "__ModuleInserter__/semver"
 
 local debugDump = require "__ModuleInserter__/lib_control".debugDump
 local saveVar = require "__ModuleInserter__/lib_control".saveVar
-local count_keys = require "__ModuleInserter__/lib_control".count_keys
 local GUI = require "__ModuleInserter__/gui"
 
 local MOD_NAME = "ModuleInserter"
@@ -330,9 +329,8 @@ local function remove_invalid_items()
 end
 
 local function init_global()
-    global.entitiesToInsert = global.entitiesToInsert or {}
     global.proxies = global.proxies or {}
-    global["config"] = global["config"] or {}
+    global.config = global.config or {}
     global["config-tmp"] = global["config-tmp"] or {}
     global.storage = global.storage or {}
     global.nameToSlots = global.nameToSlots or {}
@@ -372,35 +370,6 @@ local function on_load()
     end
 end
 
-local function cleanup(show)
-    local count = 0
-    for tick, data in pairs(global.removeTicks) do
-        if data then
-            for i=#data,1,-1 do
-                local proxyData = data[i]
-                if proxyData and proxyData.g and not proxyData.g.valid then
-                    table.remove(data, i)
-                    count = count + 1
-                end
-            end
-            if count_keys(global.removeTicks[tick]) == 0 then
-                global.removeTicks[tick] = nil
-            end
-        end
-    end
-    if count_keys(global.removeTicks) == 0 then
-        script.on_event(defines.events.on_tick, nil)
-    else
-        script.on_event(defines.events.on_tick, on_tick)
-    end
-
-    if show then
-        debugDump("Removed "..count.." entries", true)
-        log("ModuleInserter: Removed "..count.." entries")
-    end
-end
-
--- run once
 local function on_configuration_changed(data)
     if not data then
         return
@@ -484,21 +453,24 @@ local function on_configuration_changed(data)
                 local check_tick = game.tick + UPDATE_RATE
                 local proxies = global.proxies[check_tick] or {}
                 local cTable, player
-                for key, origEntity in pairs(global.entitiesToInsert) do
-                    if origEntity.entity and origEntity.entity.valid and type(origEntity.modules) == "table" then
-                        player = origEntity.player and origEntity.player.valid and origEntity.player
-                        cTable = {}
-                        for _, module in pairs(origEntity.modules) do
-                            if module then
-                                cTable[module] = (cTable[module] or 0) + 1
+                if global.entitiesToInsert then
+                    for key, origEntity in pairs(global.entitiesToInsert) do
+                        if origEntity.entity and origEntity.entity.valid and type(origEntity.modules) == "table" then
+                            player = origEntity.player and origEntity.player.valid and origEntity.player
+                            cTable = {}
+                            for _, module in pairs(origEntity.modules) do
+                                if module then
+                                    cTable[module] = (cTable[module] or 0) + 1
+                                end
                             end
+                            proxies = create_request_proxy(origEntity.entity, origEntity.modules, cTable, proxies, player)
                         end
-                        proxies = create_request_proxy(origEntity.entity, origEntity.modules, cTable, proxies, player)
+                        global.entitiesToInsert[key] = nil
                     end
-                    global.entitiesToInsert[key] = nil
+                    global.proxies[check_tick] = proxies
                 end
-                global.proxies[check_tick] = proxies
-                init_players(player)
+                global.entitiesToInsert = nil
+                init_players()
                 saveVar(global, "post")
             end
             global.version = tostring(newVersion) --do i really need that?
@@ -636,13 +608,14 @@ script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_gui_checked_state_changed, on_gui_click)
 script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
 
-script.on_event(defines.events.on_research_finished, function(event)
+local function on_research_finished(event)
     if event.research.name == 'construction-robotics' then
         for _, player in pairs(event.research.force.players) do
             GUI.init(player, true)
         end
     end
-end)
+end
+script.on_event(defines.events.on_research_finished, on_research_finished)
 
 remote.add_interface("mi",
     {
@@ -653,8 +626,5 @@ remote.add_interface("mi",
         init = function()
             init_global()
             init_players()
-        end,
-        cleanup = function()
-            cleanup(true)
-        end,
+        end
     })
