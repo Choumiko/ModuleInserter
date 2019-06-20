@@ -94,7 +94,20 @@ local function on_tick(event)
     end
 end
 
-local function conditional_events()
+local function conditional_events(check)
+    if check then
+        for tick, proxies in pairs(global.proxies) do
+            for id, data in pairs(proxies) do
+                if not (data.target and data.target.valid) then
+                    proxies[id] = nil
+                end
+            end
+            if tick < game.tick or not next(proxies) then
+                log("Removed old tick: " .. tick .. "(current: " .. game.tick ..")")
+                global.proxies[tick] = nil
+            end
+        end
+    end
     if table_size(global.proxies) == 0 then
         script.on_event(defines.events.on_tick, nil)
     else
@@ -187,6 +200,14 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
     return proxies
 end
 
+local function config_exists(config, name)
+    for i = 1, #config do
+        if config[i].from == name then
+            return config[i]
+        end
+    end
+end
+
 local function on_player_selected_area(event)
     local status, err = pcall(function()
         if event.item ~= "module-inserter" or not event.player_index then return end
@@ -202,27 +223,36 @@ local function on_player_selected_area(event)
         local check_tick = event.tick + UPDATE_RATE
         local proxies = global.proxies[check_tick] or {}
         for _, entity in pairs(event.entities) do
+            --remove existing proxies if we have a config for it's target
+            if entity.name == "item-request-proxy" then
+                local target = entity.proxy_target
+                if target and target.valid and config_exists(config, target.name) then
+                    for tick, proxy in pairs(global.proxies) do
+                        if proxy[target.unit_number] then
+                            proxy[target.unit_number] = nil
+                            if not next(proxy) then
+                                global.proxies[tick] = nil
+                            end
+                            entity.destroy{raise_destroy = true}
+                            goto continue
+                        end
+                    end
+                end
+            end
             if not global.nameToSlots[entity.name] then
                 goto continue
             end
             --log(serpent.block({t=entity.type, n=entity.name, g= entity.type == "entity-ghost" and entity.ghost_name}))
             -- Check if entity is valid and stored in config as a source.
-            local index
-            for i = 1, #config do
-                if config[i].from == entity.name then
-                    index = i
-                    break
-                end
-            end
-
-            if not index then
+            local entity_config = config_exists(config, entity.name)
+            if not entity_config then
                 goto continue
             end
             if entity.type == "assembling-machine" and not entity.get_recipe() then
                 player.print("Can't insert modules in assembler without recipe")
                 goto continue
             end
-            local modules = util.table.deepcopy(config[index].to)
+            local modules = util.table.deepcopy(entity_config.to)
             local cTable = {}
             local valid_modules = true
             local recipe = entity.type == "assembling-machine" and entity.get_recipe()
@@ -260,7 +290,7 @@ local function on_player_selected_area(event)
     end)
     if not status then
         debugDump(err, true)
-        conditional_events()
+        conditional_events(true)
     end
 end
 
@@ -288,7 +318,7 @@ local function on_player_alt_selected_area(event)
     end)
     if not status then
         debugDump(err, true)
-        conditional_events()
+        conditional_events(true)
     end
 end
 
@@ -489,7 +519,7 @@ local function on_configuration_changed(data)
     end
     getMetaItemData()
     remove_invalid_items()
-    on_load()
+    conditional_events(true)
     --check for other mods
 end
 
@@ -618,6 +648,35 @@ script.on_event(defines.events.on_runtime_mod_setting_changed, on_runtime_mod_se
 script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_gui_checked_state_changed, on_gui_click)
 script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
+
+local function on_pre_mined_item(event)
+    local status, err = pcall(function()
+        if event.entity and global.nameToSlots[event.entity.name] then
+            local entity = event.entity
+            for tick, proxies in pairs(global.proxies) do
+                if proxies[entity.unit_number] then
+                    proxies[entity.unit_number] = nil
+                    if not next(proxies) then
+                        global.proxies[tick] = nil
+                    end
+                end
+            end
+            conditional_events()
+        end
+    end)
+    if not status then
+        debugDump(err, true)
+        conditional_events(true)
+    end
+end
+
+script.on_event({
+    defines.events.on_pre_player_mined_item,
+    defines.events.on_robot_pre_mined,
+    defines.events.on_entity_died,
+    defines.events.script_raised_destroy},
+    on_pre_mined_item
+)
 
 local function on_research_finished(event)
     if event.research.name == 'construction-robotics' then

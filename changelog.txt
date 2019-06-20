@@ -2,7 +2,7 @@
 Version: 4.1.0
 Date: 20. 06. 2019
   Changes:
-    - Modules are now requested vanilla style
+    - Modules are now requested vanilla style with item-request-proxy
     - Removed modules are placed in a chest at the assemblers location that will be deconstructed,
       no more teleporting the modules to the player immediately
     - Selecting assemblers that already have all requested modules will sort them in the defined order
