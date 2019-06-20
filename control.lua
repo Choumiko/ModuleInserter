@@ -36,11 +36,11 @@ local function compare_contents(tbl1, tbl2)
 end
 
 local function sort_modules(entity, modules, cTable)
-    log("Sorting modules for " .. entity.name)
+    --log("Sorting modules for " .. entity.name)
     local inventory = entity.get_module_inventory()
     local contents = inventory and inventory.get_contents()
-    log({"", "cTable", serpent.block(cTable)})
-    log({"", "contents", serpent.block(contents)})
+    --log({"", "cTable", serpent.block(cTable)})
+    --log({"", "contents", serpent.block(contents)})
     if compare_contents(cTable, contents) then
         local status, err = pcall(function()
             inventory.clear()
@@ -73,7 +73,6 @@ local function on_tick(event)
             if data.proxy then
                 entity = (data.target and data.target.valid) and data.target
                 if not data.proxy.valid then
-                    log("Proxy invalid")
                     if entity then
                         sort_modules(entity, data.modules, data.cTable)
                     end
@@ -87,9 +86,19 @@ local function on_tick(event)
         end
         if next(check) then
             global.proxies[check_tick] = check
-            --TODO: register on_nth_tick
         end
         global.proxies[tick] = nil
+        if table_size(global.proxies) == 0 then
+            script.on_event(defines.events.on_tick, nil)
+        end
+    end
+end
+
+local function conditional_events()
+    if table_size(global.proxies) == 0 then
+        script.on_event(defines.events.on_tick, nil)
+    else
+        script.on_event(defines.events.on_tick, on_tick)
     end
 end
 
@@ -116,7 +125,7 @@ local function drop_module(entity, name, count, module_inventory, chest, player)
     local stack = {name = name, count = count}
     --log({"", entity.name, " dropped: ", serpent.line(stack)})
     stack.count = chest.insert(stack)
-    if module_inventory.remove(stack) ~= count then
+    if module_inventory.remove(stack) ~= stack.count then
         log("Not all modules removed")
     end
     return chest
@@ -129,36 +138,38 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
     end
 
     local contents = module_inventory.get_contents()
-    local missing = {}
-    local surplus = {}
-    --log({"", entity.name, " contents: ", serpent.line(contents)})
-    --log({"", entity.name, " desired: ", serpent.line(desired)})
-    local diff, chest
-    for name, count in pairs(desired) do
-        diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
-        contents[name] = nil
-        if diff < 0 then
-            missing[name] = -1 * diff
-        elseif diff > 0 then
-            chest = drop_module(entity, name, diff, module_inventory, chest, player)
-            surplus[name] = diff
-        end
-    end
-    for name, count in pairs(contents) do
-        diff = count - (desired[name] or 0) -- >0: drop, < 0 missing
-        assert(not missing[name] and not surplus[name])
-        if diff < 0 then
-            missing[name] = -1 * diff
-        elseif diff > 0 then
-            chest = drop_module(entity, name, diff, module_inventory, chest, player)
-            surplus[name] = diff
-        end
-    end
-    --log({"", entity.name, " missing: ", serpent.line(missing)})
-    contents = module_inventory.get_contents()
     local same = compare_contents(desired, contents)
+
     if not same then
-        if next(missing)  then
+        local missing = {}
+        local surplus = {}
+        --log({"", entity.name, " contents: ", serpent.line(contents)})
+        --log({"", entity.name, " desired: ", serpent.line(desired)})
+        local diff, chest
+        for name, count in pairs(desired) do
+            diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
+            contents[name] = nil
+            if diff < 0 then
+                missing[name] = -1 * diff
+            elseif diff > 0 then
+                chest = drop_module(entity, name, diff, module_inventory, chest, player)
+                surplus[name] = diff
+            end
+        end
+        for name, count in pairs(contents) do
+            diff = count - (desired[name] or 0) -- >0: drop, < 0 missing
+            assert(not missing[name] and not surplus[name])
+            if diff < 0 then
+                missing[name] = -1 * diff
+            elseif diff > 0 then
+                chest = drop_module(entity, name, diff, module_inventory, chest, player)
+                surplus[name] = diff
+            end
+        end
+        --log({"", entity.name, " missing: ", serpent.line(missing)})
+        contents = module_inventory.get_contents()
+        same = compare_contents(desired, contents)
+        if not same and next(missing)  then
             local module_proxy = {
                 name = "item-request-proxy",
                 position = entity.position,
@@ -169,7 +180,8 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
             local ghost = entity.surface.create_entity(module_proxy)--luacheck: ignore
             proxies[entity.unit_number] = {name = entity.name, proxy = ghost, modules = modules, cTable = desired, target = entity}
         end
-    else
+    end
+    if same then
         sort_modules(entity, modules, desired)
     end
     return proxies
@@ -244,9 +256,11 @@ local function on_player_selected_area(event)
         else
             global.proxies[check_tick] = nil
         end
+        conditional_events()
     end)
     if not status then
         debugDump(err, true)
+        conditional_events()
     end
 end
 
@@ -268,12 +282,13 @@ local function on_player_alt_selected_area(event)
         for tick, proxies in pairs(global.proxies) do
             if not next(proxies) then
                 global.proxies[tick] = nil
-                --TODO: unregister on_nth_tick
             end
         end
+        conditional_events()
     end)
     if not status then
         debugDump(err, true)
+        conditional_events()
     end
 end
 
@@ -363,11 +378,7 @@ end
 
 local function on_load()
     -- set metatables, register conditional event handlers, local references to global
-    if table_size(global.proxies) == 0 then
-        script.on_event(defines.events.on_tick, nil)
-    else
-        script.on_event(defines.events.on_tick, on_tick)
-    end
+    conditional_events()
 end
 
 local function on_configuration_changed(data)
@@ -470,8 +481,8 @@ local function on_configuration_changed(data)
                     global.proxies[check_tick] = proxies
                 end
                 global.entitiesToInsert = nil
+                conditional_events()
                 init_players()
-                saveVar(global, "post")
             end
             global.version = tostring(newVersion) --do i really need that?
         end
