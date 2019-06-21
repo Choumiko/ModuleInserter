@@ -546,19 +546,10 @@ local function on_gui_click(event)
             GUI.clear_all(player)
         elseif element.name  == "module-inserter-storage-store" then
             GUI.store(player)
-        elseif element.name == "module-inserter-save-as" then
-            GUI.save_as(player)
-        else
-            event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
-            local type, index, _ = string.match(element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
-            --log(serpent.block({t=type,i=index,s=slot}))
-            if type and index then
-                if type == "restore" then
-                    GUI.restore(player, tonumber(index))
-                elseif type == "remove" then
-                    GUI.remove(player, tonumber(index))
-                end
-            end
+        elseif element.name == "module_inserter_delete_preset" then
+            GUI.remove(player, element)
+        elseif element.name == "module_inserter_restore_preset" then
+            GUI.restore(player, element)
         end
     end)
     if not status then
@@ -634,7 +625,6 @@ local function on_runtime_mod_setting_changed(event)
     local _, err = pcall(function()
         --log(serpent.block(event))
         if event.setting == "module_inserter_config_size" then
-            --probably want to in/decrease config and config-tmp and refresh the players ui if it is opened
             GUI.refresh(game.get_player(event.player_index))
         end
     end)

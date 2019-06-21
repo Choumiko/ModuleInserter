@@ -27,7 +27,8 @@ function GUI.destroy(player)
         storage.destroy()
         global.gui_elements[player.index].preset_frame = nil
     end
-    global["config-tmp"][player.index] = nil
+    --TODO why not keep it?
+    --global["config-tmp"][player.index] = nil
     if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.index].YARM_old_expando then
         remote.call("YARM", "show_expando", player.index)
     end
@@ -49,6 +50,24 @@ function GUI.refresh(player)
     if was_opened then
         GUI.open_frame(player, global["config-tmp"][player.index])
     end
+end
+
+function GUI.add_preset(storage_table, key)
+    local preset_flow = storage_table.add{
+        type = "flow",
+        direction = "horizontal"
+    }
+    preset_flow.add{
+        type = "button",
+        caption = key,
+        name = "module_inserter_restore_preset"
+    }.style.width = 150
+    preset_flow.add{
+        type = "sprite-button",
+        name = "module_inserter_delete_preset",
+        style = "mi_delete_preset",
+        sprite = "utility/remove"
+    }
 end
 
 function GUI.open_frame(player, tmp_config)
@@ -149,7 +168,7 @@ function GUI.open_frame(player, tmp_config)
 
     local button_grid = frame.add{
         type = "table",
-        column_count = 3,
+        column_count = 2,
         name = "module-inserter-button-grid"
     }
     button_grid.add{
@@ -163,20 +182,6 @@ function GUI.open_frame(player, tmp_config)
         caption = {"module-inserter-config-button-clear-all"}
     }
 
-    button_grid.add{type="label", caption=""}
-
-    button_grid.add{
-        type = "button",
-        name = "module-inserter-save-as",
-        caption = {"module-inserter-config-button-save-as"}
-    }
-
-    local saveText = button_grid.add{
-        type = "textfield",
-        name = "module-inserter-save-as-text"
-    }
-    saveText.text = global.config[player.index].loaded or ""
-
     local storage_frame = left.add{
         type = "frame",
         name = "module-inserter-storage-frame",
@@ -187,30 +192,20 @@ function GUI.open_frame(player, tmp_config)
     storage_frame.style.maximal_height = 596
     storage_frame.style.maximal_width = 500
 
-    local storage_frame_error_label = storage_frame.add{
-        type = "label",
-        name = "module-inserter-storage-error-label",
-        caption = "---"
-    }
-    storage_frame_error_label.style.minimal_width = 200
     local storage_frame_buttons = storage_frame.add{
         type = "table",
-        column_count = 3,
+        column_count = 2,
         name = "module-inserter-storage-buttons"
     }
-    storage_frame_buttons.add{
-        type = "label",
-        caption = {"module-inserter-storage-name-label"},
-        name = "module-inserter-storage-name-label"
-    }
+
     storage_frame_buttons.add{
         type = "textfield",
         text = "",
         name = "module-inserter-storage-name"
-    }
+    }.style.width = 150
     storage_frame_buttons.add{
         type = "button",
-        caption = {"module-inserter-storage-store"},
+        caption = {"gui-save-game.save"},
         name = "module-inserter-storage-store",
         style = "module-inserter-small-button"
     }
@@ -221,32 +216,15 @@ function GUI.open_frame(player, tmp_config)
     }
     --scroll_pane.style.maximal_height = 480 * (1 / player.display_scale)
     local storage_table = storage_pane.add{
-        type = "table",
-        column_count = 3,
+        type = "flow",
+        --column_count = 3,
+        direction = "vertical",
         name = "module-inserter-storage-grid"
     }
 
     if global["storage"][player.index] then
-        local i = 1
         for key, _ in pairs(global["storage"][player.index]) do
-            storage_table.add{
-                type = "label",
-                caption = key .. "        ",
-                name = "module-inserter-storage-entry-" .. i
-            }
-            storage_table.add{
-                type = "button",
-                caption = {"module-inserter-storage-restore"},
-                name = "module-inserter-restore-" .. i,
-                style = "module-inserter-small-button"
-            }
-            storage_table.add{
-                type = "button",
-                caption = {"module-inserter-storage-remove"},
-                name = "module-inserter-remove-" .. i,
-                style = "module-inserter-small-button"
-            }
-            i = i + 1
+            GUI.add_preset(storage_table, key)
         end
     end
 end
@@ -272,22 +250,22 @@ function GUI.save_changes(player, name)
                 }
             end
         end
-        global["config-tmp"][player.index] = nil
+        --global["config-tmp"][player.index] = nil
     end
     global.config[player.index].loaded = name or nil
     --saveVar(global, "saved")
-    local frame = global.gui_elements[player.index].config_frame
-    local storage_frame = global.gui_elements[player.index].preset_frame
+    -- local frame = global.gui_elements[player.index].config_frame
+    -- local storage_frame = global.gui_elements[player.index].preset_frame
 
-    if frame then
-        frame.destroy()
-        if storage_frame then
-            storage_frame.destroy()
-        end
-        if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.index].YARM_old_expando then
-            remote.call("YARM", "show_expando", player.index)
-        end
-    end
+    -- if frame then
+    --     frame.destroy()
+    --     if storage_frame then
+    --         storage_frame.destroy()
+    --     end
+    --     if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player.index].YARM_old_expando then
+    --         remote.call("YARM", "show_expando", player.index)
+    --     end
+    -- end
 end
 
 function GUI.clear_all(player)
@@ -295,7 +273,6 @@ function GUI.clear_all(player)
     if not (frame and frame.valid) then return end
     local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
     global.config[player.index].loaded = nil
-    frame["module-inserter-button-grid"]["module-inserter-save-as-text"].text = ""
 
     for i = 1, player.mod_settings.module_inserter_config_size.value do
         global["config-tmp"][player.index][i] = { from = false, to = {} }
@@ -410,9 +387,8 @@ function GUI.store(player)
     if not (storage_frame and storage_frame.valid) then return end
     local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
     local name = textfield.text
-    name = string.match(name, "^%s*(.-)%s*$")
 
-    if not name then
+    if name == "" then
         GUI.display_message(storage_frame, true, "module-inserter-storage-name-not-set")
         return
     end
@@ -430,105 +406,50 @@ function GUI.store(player)
     end
 
     local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
-    local index = table_size(global["storage"][player.index]) + 1
-
-    storage_grid.add{
-        type = "label",
-        caption = name .. "        ",
-        name = "module-inserter-storage-entry-" .. index
-    }
-
-    storage_grid.add{
-        type = "button",
-        caption = {"module-inserter-storage-restore"},
-        name = "module-inserter-restore-" .. index,
-        style = "module-inserter-small-button"
-    }
-
-    storage_grid.add{
-        type = "button",
-        caption = {"module-inserter-storage-remove"},
-        name = "module-inserter-remove-" .. index,
-        style = "module-inserter-small-button"
-    }
-    GUI.display_message(storage_frame, true, "---")
+    GUI.add_preset(storage_grid, name)
     textfield.text = ""
     --saveVar(global, "stored")
 end
 
-function GUI.save_as(player)
-    local storage_frame = global.gui_elements[player.index].preset_frame
-    local frame = global.gui_elements[player.index].config_frame
-
-    if not (storage_frame and storage_frame.valid and frame and frame.valid) then return end
-    local textfield = frame["module-inserter-button-grid"]["module-inserter-save-as-text"]
-    local name = textfield.text
-    name = string.match(name, "^%s*(.-)%s*$")
-
-    if not name or name == "" then
-        GUI.display_message(frame, true, "module-inserter-storage-name-not-set")
-        return
-    end
-
-    global["storage"][player.index][name] = {}
-    for i = 1, #global["config-tmp"][player.index] do
-        global["storage"][player.index][name][i] = {
-            from = global["config-tmp"][player.index][i].from,
-            to = util.table.deepcopy(global["config-tmp"][player.index][i].to)
-        }
-    end
-    GUI.save_changes(player, name)
-end
-
-function GUI.restore(player, index)
-    local frame = global.gui_elements[player.index].config_frame
-    local storage_frame = global.gui_elements[player.index].preset_frame
+function GUI.restore(player, element)
+    local player_index = player.index
+    local frame = global.gui_elements[player_index].config_frame
+    local storage_frame = global.gui_elements[player_index].preset_frame
     if not (frame and frame.valid and storage_frame and storage_frame.valid) then return end
 
-    local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
-    local storage_entry = storage_grid["module-inserter-storage-entry-" .. index]
-    if not storage_entry then return end
+    local name = element.caption
+    local preset = global["storage"][player_index][name]
+    if not preset then return end
 
-    local name = string.match(storage_entry.caption, "^%s*(.-)%s*$")
-    if not global["storage"][player.index] or not global["storage"][player.index][name] then return end
-
-    global["config-tmp"][player.index] = {}
+    global["config-tmp"][player_index] = {}
     local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
+    local config_tmp = global["config-tmp"][player_index]
     for i = 1, player.mod_settings.module_inserter_config_size.value do
-        if i > #global["storage"][player.index][name] then
-            global["config-tmp"][player.index][i] = {from = false, to = {}}
+        if i > #preset then
+            config_tmp[i] = {from = false, to = {}}
         else
-            global["config-tmp"][player.index][i] = {
-                from = global["storage"][player.index][name][i].from,
-                to = util.table.deepcopy(global["storage"][player.index][name][i].to)
+            config_tmp[i] = {
+                from = preset[i].from,
+                to = util.table.deepcopy(preset[i].to)
             }
         end
-        local assembler = global["config-tmp"][player.index][i].from or nil
+        local assembler = config_tmp[i].from or nil
         ruleset_grid["module-inserter-from-" .. i].elem_value = assembler
         GUI.update_modules(player, i)
     end
-    GUI.display_message(storage_frame, true, "---")
     GUI.save_changes(player, name)
 end
 
-function GUI.remove(player, index)
+function GUI.remove(player, element)
     if not global["storage"][player.index] then return end
     local storage_frame = global.gui_elements[player.index].preset_frame
     if not (storage_frame and storage_frame.valid) then return end
-    local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
-    local label = storage_grid["module-inserter-storage-entry-" .. index]
-    local btn1 = storage_grid["module-inserter-restore-" .. index]
-    local btn2 = storage_grid["module-inserter-remove-" .. index]
-
-    if not (label and btn1 and btn2) then return end
-
-    local name = string.match(label.caption, "^%s*(.-)%s*$")
-    label.destroy()
-    btn1.destroy()
-    btn2.destroy()
+    local preset_flow = element.parent
+    local name = preset_flow.children[1]
+    name = (name and name.valid) and name.caption
+    preset_flow.destroy()
 
     global["storage"][player.index][name] = nil
-    GUI.display_message(storage_frame, true, "---")
 end
 
 return GUI
