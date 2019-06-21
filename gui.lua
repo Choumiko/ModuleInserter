@@ -235,24 +235,26 @@ function GUI.save_changes(player, name)
     --   2. removing config-tmp
     --   3. closing the frame
 
-    if global["config-tmp"][player.index] then
-        global["config"][player.index] = {}
+    local tmp = {}
+    for i = 1, #global["config-tmp"][player.index] do
+        -- Rule can be saved only if both "from" and "to" fields are set. <-- WHY????
 
-        for i = 1, #global["config-tmp"][player.index] do
-            -- Rule can be saved only if both "from" and "to" fields are set. <-- WHY????
-
-            if not global["config-tmp"][player.index][i] or type(global["config-tmp"][player.index][i].to) ~= "table" then
-                global["config"][player.index][i] = { from = false, to = {} }
-            else
-                global["config"][player.index][i] = {
-                    from = global["config-tmp"][player.index][i].from,
-                    to = global["config-tmp"][player.index][i].to
-                }
-            end
+        if not global["config-tmp"][player.index][i] or type(global["config-tmp"][player.index][i].to) ~= "table" then
+            tmp[i] = { from = false, to = {} }
+        else
+            tmp[i] = {
+                from = global["config-tmp"][player.index][i].from,
+                to = global["config-tmp"][player.index][i].to
+            }
         end
-        --global["config-tmp"][player.index] = nil
     end
-    global.config[player.index].loaded = name or nil
+    global["config"][player.index] = tmp
+    local storage_frame = global.gui_elements[player.index].preset_frame
+    if (storage_frame and storage_frame.valid) then
+        local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
+        textfield.text = name or ""
+    end
+    --global["config-tmp"][player.index] = nil
     --saveVar(global, "saved")
     -- local frame = global.gui_elements[player.index].config_frame
     -- local storage_frame = global.gui_elements[player.index].preset_frame
@@ -269,15 +271,20 @@ function GUI.save_changes(player, name)
 end
 
 function GUI.clear_all(player)
-    local frame = global.gui_elements[player.index].config_frame
+    local player_index = player.index
+    local frame = global.gui_elements[player_index].config_frame
     if not (frame and frame.valid) then return end
     local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
-    global.config[player.index].loaded = nil
 
     for i = 1, player.mod_settings.module_inserter_config_size.value do
-        global["config-tmp"][player.index][i] = { from = false, to = {} }
+        global["config-tmp"][player_index][i] = { from = false, to = {} }
         ruleset_grid["module-inserter-from-" .. i].elem_value = nil
         GUI.update_modules(player, i)
+    end
+    local storage_frame = global.gui_elements[player_index].preset_frame
+    if (storage_frame and storage_frame.valid) then
+        local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
+        textfield.text = ""
     end
 end
 

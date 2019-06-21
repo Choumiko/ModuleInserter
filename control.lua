@@ -514,6 +514,12 @@ local function on_configuration_changed(data)
                 conditional_events()
                 init_players()
             end
+
+            if oldVersion < v'4.1.1' then
+                for pi, _ in pairs(game.players) do
+                    global.config[pi].loaded = nil
+                end
+            end
             global.version = tostring(newVersion) --do i really need that?
         end
     end
