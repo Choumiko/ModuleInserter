@@ -392,7 +392,7 @@ local function init_player(player)
     global.gui_elements[i] = global.gui_elements[i] or {}
     -- not setting config-tmp intentionally
     --global["config-tmp"][i] = global["config-tmp"][i] or {}
-    GUI.init(player)
+    GUI.init(player, i)
 end
 
 local function init_players()
@@ -478,7 +478,7 @@ local function on_configuration_changed(data)
                 for i, player in pairs(game.players) do
                     if player and player.valid then
                         init_player(player)
-                        GUI.refresh(player)
+                        GUI.refresh(player, i)
                     else
                         global.config[i] = nil
                         global.settings[i] = nil
@@ -542,20 +542,21 @@ local function on_gui_click(event)
     local status, err = pcall(function()
         local element = event.element
         --log("click " .. element.name)
-        local player = game.get_player(event.player_index)
+        local player_index = event.player_index
+        local player = game.get_player(player_index)
 
         if element.name == "module_inserter_config_button" then
-            GUI.open_frame(player)
+            GUI.open_frame(player, player_index)
         elseif element.name == "module-inserter-apply" then
-            GUI.save_changes(player)
+            GUI.save_changes(player_index)
         elseif element.name == "module-inserter-clear-all" then
-            GUI.clear_all(player)
+            GUI.clear_all(player, player_index)
         elseif element.name  == "module-inserter-storage-store" then
-            GUI.store(player)
+            GUI.store(player_index)
         elseif element.name == "module_inserter_delete_preset" then
-            GUI.remove(player, element)
+            GUI.remove(event.player_index, element)
         elseif element.name == "module_inserter_restore_preset" then
-            GUI.restore(player, element)
+            GUI.restore(player, player_index, element)
         end
     end)
     if not status then
@@ -600,21 +601,22 @@ local function on_gui_elem_changed(event)
             -- end
             -- log(serpent.block(recipe.products, {name="products"}))
         end
-        local player = game.get_player(event.player_index)
+
         if type == "from" then
             result = item and item_to_entity(item.name)
-            GUI.set_rule(player, tonumber(index), result, event.element)
+            GUI.set_rule(event.player_index, tonumber(index), result, event.element)
             -- if result then
             --     log(serpent.block(result.type))
             --     log(serpent.block(result.name))
             --     log(result.module_inventory_size)
             -- end
             if elem_value and not result then
+                local player = game.get_player(event.player_index)
                 player.print("No entity found for item: " .. elem_value)
             end
         elseif type == "to" then
             result = item and game.item_prototypes[item.name]
-            GUI.set_modules(player, tonumber(index), tonumber(slot), result)
+            GUI.set_modules(event.player_index, tonumber(index), tonumber(slot), result)
             -- if result then
             --     log(serpent.block(result.type))
             --     log(serpent.block(result.name))
@@ -631,7 +633,7 @@ local function on_runtime_mod_setting_changed(event)
     local _, err = pcall(function()
         --log(serpent.block(event))
         if event.setting == "module_inserter_config_size" then
-            GUI.refresh(game.get_player(event.player_index))
+            GUI.refresh(game.get_player(event.player_index), event.player_index)
         end
     end)
     if err then
@@ -676,8 +678,8 @@ script.on_event({
 
 local function on_research_finished(event)
     if event.research.name == 'construction-robotics' then
-        for _, player in pairs(event.research.force.players) do
-            GUI.init(player, true)
+        for pi, player in pairs(event.research.force.players) do
+            GUI.init(player, pi, true)
         end
     end
 end
