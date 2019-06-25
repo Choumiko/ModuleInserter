@@ -1,10 +1,12 @@
 require "__core__/lualib/util"
 local v = require "__ModuleInserter__/semver"
 
-local debugDump = require "__ModuleInserter__/lib_control".debugDump
-local saveVar = require "__ModuleInserter__/lib_control".saveVar
+local lib = require "__ModuleInserter__/lib_control"
+local debugDump = lib.debugDump
+local saveVar = lib.saveVar
+local config_exists = lib.config_exists
 local GUI = require "__ModuleInserter__/gui"
-
+local profiler = require "profiler"
 local MOD_NAME = "ModuleInserter"
 
 local UPDATE_RATE = 117
@@ -25,7 +27,7 @@ local function productivity_allowed(module, recipe)
 end
 
 local function compare_contents(tbl1, tbl2)
-    if tbl1 == tbl2 then return true end
+    if tbl1 == tbl2 then log("ha") return true end
     for k, value in pairs(tbl1) do
         if (value ~= tbl2[k]) then return false end
     end
@@ -36,7 +38,8 @@ local function compare_contents(tbl1, tbl2)
 end
 
 local function sort_modules(entity, modules, cTable)
-    --log("Sorting modules for " .. entity.name)
+    --Don't sort empty inventories
+    if not next(modules) then return end
     local inventory = entity.get_module_inventory()
     local contents = inventory and inventory.get_contents()
     --log({"", "cTable", serpent.block(cTable)})
@@ -156,6 +159,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
     if not same then
         local missing = {}
         local surplus = {}
+        local changed
         --log({"", entity.name, " contents: ", serpent.line(contents)})
         --log({"", entity.name, " desired: ", serpent.line(desired)})
         local diff, chest
@@ -177,11 +181,14 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
             elseif diff > 0 then
                 chest = drop_module(entity, name, diff, module_inventory, chest, player)
                 surplus[name] = diff
+                changed = true
             end
         end
         --log({"", entity.name, " missing: ", serpent.line(missing)})
-        contents = module_inventory.get_contents()
-        same = compare_contents(desired, contents)
+        if changed then
+            contents = module_inventory.get_contents()
+            same = compare_contents(desired, contents)
+        end
         if not same and next(missing)  then
             local module_proxy = {
                 name = "item-request-proxy",
@@ -200,31 +207,27 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
     return proxies
 end
 
-local function config_exists(config, name)
-    for i = 1, #config do
-        if config[i].from == name then
-            return config[i]
-        end
-    end
-end
-
 local function on_player_selected_area(event)
     local status, err = pcall(function()
-        if event.item ~= "module-inserter" or not event.player_index then return end
+        log("Entities: " .. #event.entities)
+        profiler.Start(true)
         local player_index = event.player_index
+        if event.item ~= "module-inserter" or not player_index then return end
         local player = game.get_player(player_index)
-        if not global["config"][player_index] then
-            global["config"][player_index] = {}
-            return
-        end
+        local pdata = global._pdata[player_index]
 
-        local config = global["config"][player_index]
+        local config = pdata.config
         --player.print("Entities: " .. #event.entities)
         local check_tick = event.tick + UPDATE_RATE
         local proxies = global.proxies[check_tick] or {}
+        local ent_type, ent_name
+        local _entity_prototypes = game.entity_prototypes
+        local _item_prototypes = game.item_prototypes
         for _, entity in pairs(event.entities) do
+            ent_type = entity.type
+            ent_name = entity.name
             --remove existing proxies if we have a config for it's target
-            if entity.name == "item-request-proxy" then
+            if ent_name == "item-request-proxy" then
                 local target = entity.proxy_target
                 if target and target.valid and config_exists(config, target.name) then
                     for tick, proxy in pairs(global.proxies) do
@@ -239,46 +242,40 @@ local function on_player_selected_area(event)
                     end
                 end
             end
-            if not global.nameToSlots[entity.name] then
+            if not global.nameToSlots[ent_name] then
                 goto continue
             end
-            --log(serpent.block({t=entity.type, n=entity.name, g= entity.type == "entity-ghost" and entity.ghost_name}))
-            -- Check if entity is valid and stored in config as a source.
-            local entity_config = config_exists(config, entity.name)
+            local entity_config = config_exists(config, ent_name)
             if not entity_config then
                 goto continue
             end
-            if entity.type == "assembling-machine" and not entity.get_recipe() then
+            local recipe = ent_type == "assembling-machine" and entity.get_recipe()
+            if ent_type == "assembling-machine" and not recipe then
                 player.print("Can't insert modules in assembler without recipe")
                 goto continue
             end
-            local modules = util.table.deepcopy(entity_config.to)
+            local modules = entity_config.to--util.table.deepcopy(entity_config.to)
             local cTable = {}
-            local valid_modules = true
-            local recipe = entity.type == "assembling-machine" and entity.get_recipe()
-            local entity_proto = game.entity_prototypes[entity.name]
+            local entity_proto = _entity_prototypes[ent_name]
             for _, module in pairs(modules) do
                 if module then
                     cTable[module] = (cTable[module] or 0) + 1
                 end
-                local prototype = module and game.item_prototypes[module] or false
+                local prototype = module and _item_prototypes[module]
                 if prototype and prototype.module_effects and prototype.module_effects["productivity"] then
                     if prototype.module_effects["productivity"] ~= 0 then
-                        if entity.type == "beacon" and not entity_proto.allowed_effects['productivity'] then
+                        if ent_type == "beacon" and not entity_proto.allowed_effects['productivity'] then
                             player.print({"inventory-restriction.cant-insert-module", prototype.localised_name, entity.localised_name})
-                            valid_modules = false
+                            goto continue
                         end
-                        if entity.type == "assembling-machine" and recipe and next(prototype.limitations) and not productivity_allowed(module, recipe.name) then
+                        if ent_type == "assembling-machine" and recipe and next(prototype.limitations) and not productivity_allowed(module, recipe.name) then
                             player.print({"item-limitation." .. prototype.limitation_message_key})
-                            valid_modules = false
+                            goto continue
                         end
                     end
                 end
             end
-
-            if valid_modules then
-                proxies = create_request_proxy(entity, modules, cTable, proxies, player)
-            end
+            proxies = create_request_proxy(entity, modules, cTable, proxies, player)
             ::continue::
         end
         if next(proxies) then
@@ -287,11 +284,14 @@ local function on_player_selected_area(event)
             global.proxies[check_tick] = nil
         end
         conditional_events()
+        profiler.Stop()
     end)
     if not status then
         debugDump(err, true)
         conditional_events(true)
+        profiler.Stop(true)
     end
+    profiler.Stop(true)
 end
 
 local function on_player_alt_selected_area(event)
@@ -337,34 +337,42 @@ end
 
 local function remove_invalid_items()
     local items = game.item_prototypes
-    for name, p in pairs(global.config) do
-        for i=#p,1,-1 do
-            if p[i].from and not items[p[i].from] then
-                global.config[name][i].from = false
-                global.config[name][i].to = {}
-                debugDump(p[i].from,true)
-            end
-            if type(p[i].to) == "table" then
-                for k, m in pairs(p[i].to) do
-                    if m and not items[m] then
-                        global.config[name][i].to[k] = false
-                    end
-                end
-            end
-        end
-    end
-
-    for player, store in pairs(global.storage) do
-        for name, p in pairs(store) do
+    for _, pdata in pairs(global._pdata) do
+        for name, p in pairs(pdata.config) do
             for i=#p,1,-1 do
+                if p[i].from == false then
+                    p[i].from = nil
+                end
                 if p[i].from and not items[p[i].from] then
-                    global.storage[player][name][i].from = false
-                    global.storage[player][name][i].to = {}
+                    pdata.config[name][i].from = nil
+                    pdata.config[name][i].to = {}
+                    debugDump(p[i].from,true)
                 end
                 if type(p[i].to) == "table" then
                     for k, m in pairs(p[i].to) do
                         if m and not items[m] then
-                            global.storage[player][name][i].to[k] = false
+                            pdata.config[name][i].to[k] = nil
+                        end
+                    end
+                end
+            end
+        end
+
+        for player, store in pairs(pdata.storage) do
+            for name, p in pairs(store) do
+                for i=#p,1,-1 do
+                    if p[i].from == false then
+                        p[i].from = nil
+                    end
+                    if p[i].from and not items[p[i].from] then
+                        pdata.storage[player][name][i].from = nil
+                        pdata.storage[player][name][i].to = {}
+                    end
+                    if type(p[i].to) == "table" then
+                        for k, m in pairs(p[i].to) do
+                            if m and not items[m] then
+                                pdata.storage[player][name][i].to[k] = nil
+                            end
                         end
                     end
                 end
@@ -375,24 +383,24 @@ end
 
 local function init_global()
     global.proxies = global.proxies or {}
-    global.config = global.config or {}
-    global["config-tmp"] = global["config-tmp"] or {}
-    global.storage = global.storage or {}
     global.nameToSlots = global.nameToSlots or {}
-    global.settings = global.settings or {}
-
-    global.gui_elements = global.gui_elements or {}
+    global._pdata = global._pdata or {}
 end
 
 local function init_player(player)
     local i = player.index
-    global.settings[i] = global.settings[i] or {}
-    global.config[i] = global.config[i] or {}
-    global.storage[i] = global.storage[i] or {}
-    global.gui_elements[i] = global.gui_elements[i] or {}
-    -- not setting config-tmp intentionally
-    --global["config-tmp"][i] = global["config-tmp"][i] or {}
-    GUI.init(player, i)
+    local pdata = global._pdata[player.index] or {}
+    global._pdata[i] = {
+        config = pdata.config or {},
+        storage = pdata.storage or {},
+        settings = pdata.settings or {},
+
+        gui_actions = pdata.gui_actions or {},
+        gui_elements = pdata.gui_elements or {},
+
+    }
+
+    GUI.init(player, global._pdata[i])
 end
 
 local function init_players()
@@ -436,7 +444,7 @@ local function on_configuration_changed(data)
                 for name, p in pairs(global.config) do
                     for i=#p,1,-1 do
                         if p[i].from == "" then
-                            global.config[name][i].from = false
+                            global.config[name][i].from = nil
                             global.config[name][i].to = {}
                         end
                         if type(p[i].to) ~= "table" then
@@ -448,7 +456,7 @@ local function on_configuration_changed(data)
                 for name, p in pairs(global["config-tmp"]) do
                     for i=#p,1,-1 do
                         if p[i].from == "" then
-                            global["config-tmp"][name][i].from = false
+                            global["config-tmp"][name][i].from = nil
                             global["config-tmp"][name][i].to = {}
                         end
                         if type(p[i].to) ~= "table" then
@@ -461,7 +469,7 @@ local function on_configuration_changed(data)
                     for name, p in pairs(store) do
                         for i=#p,1,-1 do
                             if p[i].from == "" then
-                                global.storage[player][name][i].from = false
+                                global.storage[player][name][i].from = nil
                                 global.storage[player][name][i].to = {}
                             end
                             if type(p[i].to) ~= "table" then
@@ -478,7 +486,6 @@ local function on_configuration_changed(data)
                 for i, player in pairs(game.players) do
                     if player and player.valid then
                         init_player(player)
-                        GUI.refresh(player, i)
                     else
                         global.config[i] = nil
                         global.settings[i] = nil
@@ -516,9 +523,22 @@ local function on_configuration_changed(data)
             end
 
             if oldVersion < v'4.1.1' then
-                for pi, _ in pairs(game.players) do
+                init_global()
+                local pdata
+                for pi, p in pairs(game.players) do
+                    init_player(p)
+                    pdata = global._pdata[pi]
                     global.config[pi].loaded = nil
+                    pdata.gui_elements = global.gui_elements and global.gui_elements[pi] or {}
+                    pdata.config = global.config and global.config[pi] or {}
+                    pdata.config_tmp = global["config-tmp"] and global["config-tmp"][pi]
+                    pdata.storage = global.storage and global.storage[pi] or {}
+                    pdata.settings = global.settings and global.settings[pi] or {}
                 end
+                global.gui_elements = nil
+                global.config = nil
+                global.storage = nil
+                global.settings = nil
             end
             global.version = tostring(newVersion) --do i really need that?
         end
@@ -538,102 +558,16 @@ script.on_load(on_load)
 script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_player_created, on_player_created)
 
-local function on_gui_click(event)
-    local status, err = pcall(function()
-        local element = event.element
-        --log("click " .. element.name)
-        local player_index = event.player_index
-        local player = game.get_player(player_index)
-
-        if element.name == "module_inserter_config_button" then
-            GUI.open_frame(player, player_index)
-        elseif element.name == "module-inserter-apply" then
-            GUI.save_changes(player_index)
-        elseif element.name == "module-inserter-clear-all" then
-            GUI.clear_all(player, player_index)
-        elseif element.name  == "module-inserter-storage-store" then
-            GUI.store(player_index)
-        elseif element.name == "module_inserter_delete_preset" then
-            GUI.remove(event.player_index, element)
-        elseif element.name == "module_inserter_restore_preset" then
-            GUI.restore(player, player_index, element)
-        end
-    end)
-    if not status then
-        debugDump(err, true)
-    end
-end
-
--- get a entity prototype from an item name
-local function item_to_entity(name)
-    local proto = game.entity_prototypes[name]
-    if not proto then
-        local item_proto = game.item_prototypes[name]
-        proto = item_proto and item_proto.place_result
-    end
-    return proto
-end
-
-local function on_gui_elem_changed(event)
-    local status, err = pcall(function()
-        --log("elem_changed: " .. event.element.name)
-        --event.element.name:match("(%w+)__([%w%s%-%#%!%$]*)_*([%w%s%-%#%!%$]*)_*(%w*)")
-        local type, index, slot = string.match(event.element.name, "module%-inserter%-(%a+)%-(%d+)%-*(%d*)")
-        if not type then
-            return
-        end
-        local elem_value = event.element.elem_value
-        --log(serpent.block({t=type,i=index,s=slot, elem_value = elem_value}))
-        local item = false
-        local recipe, result
-        if elem_value then
-            item = game.item_prototypes[elem_value]
-            if not item then
-                --try recipes then entities
-                recipe = game.recipe_prototypes[elem_value]
-                item = recipe and recipe.main_product or next(recipe.products)
-                item = item or game.entity_prototypes[elem_value]
-            end
-            -- if item then
-            --     log(serpent.block(item.type))
-            -- else
-            --     log("nothing found")
-            -- end
-            -- log(serpent.block(recipe.products, {name="products"}))
-        end
-
-        if type == "from" then
-            result = item and item_to_entity(item.name)
-            GUI.set_rule(event.player_index, tonumber(index), result, event.element)
-            -- if result then
-            --     log(serpent.block(result.type))
-            --     log(serpent.block(result.name))
-            --     log(result.module_inventory_size)
-            -- end
-            if elem_value and not result then
-                local player = game.get_player(event.player_index)
-                player.print("No entity found for item: " .. elem_value)
-            end
-        elseif type == "to" then
-            result = item and game.item_prototypes[item.name]
-            GUI.set_modules(event.player_index, tonumber(index), tonumber(slot), result)
-            -- if result then
-            --     log(serpent.block(result.type))
-            --     log(serpent.block(result.name))
-            --     log(serpent.block(result.module_effects))
-            -- end
-        end
-    end)
-    if not status then
-        debugDump(err, true)
-    end
-end
+script.on_event(defines.events.on_gui_click, GUI.generic_event)
+script.on_event(defines.events.on_gui_elem_changed, GUI.generic_event)
 
 local function on_runtime_mod_setting_changed(event)
     local _, err = pcall(function()
         --log(serpent.block(event))
-        if event.setting == "module_inserter_config_size" then
-            GUI.refresh(game.get_player(event.player_index), event.player_index)
+        if event.setting == "module_inserter_config_size" and event.player_index then
+            local pi = event.player_index
+            local pdata = global._pdata[pi]
+            GUI.close(pdata, pi)
         end
     end)
     if err then
@@ -642,10 +576,6 @@ local function on_runtime_mod_setting_changed(event)
     end
 end
 script.on_event(defines.events.on_runtime_mod_setting_changed, on_runtime_mod_setting_changed)
-
-script.on_event(defines.events.on_gui_click, on_gui_click)
-script.on_event(defines.events.on_gui_checked_state_changed, on_gui_click)
-script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
 
 local function on_pre_mined_item(event)
     local status, err = pcall(function()
@@ -679,7 +609,7 @@ script.on_event({
 local function on_research_finished(event)
     if event.research.name == 'construction-robotics' then
         for pi, player in pairs(event.research.force.players) do
-            GUI.init(player, pi, true)
+            GUI.init(player, global._pdata[pi], true)
         end
     end
 end

@@ -18,8 +18,17 @@ local function saveVar(var, name)
     game.write_file("module"..n..".lua", serpent.block(var, {name="global"}))
 end
 
+local function config_exists(config, name)
+    for i = 1, #config do
+        if config[i].from == name then
+            return config[i], i
+        end
+    end
+end
+
 local M = {}
 M.debugDump = debugDump
 M.saveVar = saveVar
+M.config_exists = config_exists
 
 return M

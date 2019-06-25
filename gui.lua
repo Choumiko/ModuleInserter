@@ -1,460 +1,574 @@
 local mod_gui = require '__core__/lualib/mod-gui'
---local saveVar = require "__ModuleInserter__/lib_control".saveVar
+local lib = require "__ModuleInserter__/lib_control"
+local debugDump = lib.debugDump
+
+local _entity_prototypes = {}
+local function get_entity_from_item_name(name)
+    if _entity_prototypes[name] == nil then
+        local item = game.item_prototypes[name]
+        _entity_prototypes[name] = item and item.place_result or false
+    end
+    return _entity_prototypes[name]
+end
 
 local GUI = {}
+local START_SIZE = 10
+local gui_functions = {
+    main_button = function(event, pdata, _)
+        if pdata.gui_elements.config_frame then
+            GUI.close(pdata, event.player_index)
+        else
+            GUI.open_config_frame(event.player, pdata)
+        end
+    end,
 
-function GUI.init(player, player_index, after_research)
-    local button = global.gui_elements[player_index].main_button
-    if (not (button and button.valid)) and (player.force.technologies["construction-robotics"].researched or after_research) then
-        button = mod_gui.get_button_flow(player).add{
-            type = "sprite-button",
-            name = "module_inserter_config_button",
-            style = "module-inserter-button",
-            sprite = "technology/modules"
-        }
-    end
-    global.gui_elements[player_index].main_button = button
-end
+    save_changes = function(_, pdata)
+        for _, c in pairs(pdata.config_tmp) do
+            assert(type(c.to) == "table")
+        end
+        pdata.config = util.table.deepcopy(pdata.config_tmp)
+    end,
 
-function GUI.destroy(player_index)
-    local frame = global.gui_elements[player_index].config_frame
-    if frame and frame.valid then
-        frame.destroy()
-        global.gui_elements[player_index].config_frame = nil
-    end
-    local storage = global.gui_elements[player_index].preset_frame
-    if storage and storage.valid then
-        storage.destroy()
-        global.gui_elements[player_index].preset_frame = nil
-    end
-    --TODO why not keep it?
-    --global["config-tmp"][player_index] = nil
-    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player_index].YARM_old_expando then
-        remote.call("YARM", "show_expando", player_index)
-    end
-end
+    clear_all = function(_, pdata)
+        local gui_elements = pdata.gui_elements
+        local frame = gui_elements.config_frame
+        if not (frame and frame.valid) then return end
 
-function GUI.refresh(player, player_index)
-    local frame = global.gui_elements[player_index].config_frame
-    local was_opened
-    if frame and frame.valid then
-        frame.destroy()
-        global.gui_elements[player_index].config_frame = nil
-        was_opened = true
-    end
-    local storage = global.gui_elements[player_index].preset_frame
-    if storage and storage.valid then
-        storage.destroy()
-        global.gui_elements[player_index].preset_frame = nil
-    end
-    if was_opened then
-        GUI.open_frame(player, player_index, global["config-tmp"][player_index])
-    end
-end
+        local ruleset_grid = gui_elements.ruleset_grid
 
-function GUI.add_preset(storage_table, key)
-    local preset_flow = storage_table.add{
-        type = "flow",
-        direction = "horizontal"
-    }
-    preset_flow.add{
-        type = "button",
-        caption = key,
-        name = "module_inserter_restore_preset"
-    }.style.width = 150
-    preset_flow.add{
-        type = "sprite-button",
-        name = "module_inserter_delete_preset",
-        style = "mi_delete_preset",
-        sprite = "utility/remove"
-    }
-end
+        for i = 1, #pdata.config_tmp do
+            if i <= START_SIZE then
+                pdata.config_tmp[i]= {to = {}}
+                ruleset_grid.children[i].assembler.elem_value = nil
+                GUI.update_modules(pdata, i)
+            else
+                pdata.config_tmp[i] = nil
+                GUI.deregister_action(ruleset_grid.children[i], pdata, true)
+            end
+        end
+        GUI.update_rows(pdata)
+        local storage_frame = gui_elements.preset_frame
+        if (storage_frame and storage_frame.valid) then
+            gui_elements.textfield.text = ""
+        end
+    end,
 
-function GUI.open_frame(player, player_index, tmp_config)
-    local frame = global.gui_elements[player_index].config_frame
-    if frame and frame.valid then
-        GUI.destroy(player_index)
+    save_preset = function(event, pdata)
+        local gui_elements = pdata.gui_elements
+        local storage_frame = gui_elements.preset_frame
+        if not (storage_frame and storage_frame.valid) then return end
+        local textfield = gui_elements.textfield
+        local name = textfield.text
+
+        if name == "" then
+            GUI.display_message(event.player, {"module-inserter-storage-name-not-set"}, true)
+            return
+        end
+        if pdata.storage[name] then
+            GUI.display_message(event.player, {"module-inserter-storage-name-in-use"}, true)
+            return
+        end
+
+        pdata.storage[name] = util.table.deepcopy(pdata.config_tmp)
+        GUI.add_preset(pdata, gui_elements.storage_grid, name)
+        textfield.text = ""
+    end,
+
+    restore_preset = function(_, pdata, args)
+        local name = args.name
+        local gui_elements = pdata.gui_elements
+        local frame = gui_elements.config_frame
+        local storage_frame = gui_elements.preset_frame
+        if not (frame and frame.valid and storage_frame and storage_frame.valid) then return end
+
+        local preset = pdata.storage[name]
+        if not preset then return end
+
+        pdata.config_tmp = util.table.deepcopy(preset)
+        pdata.config = util.table.deepcopy(preset)
+        local row
+        local ruleset_grid = gui_elements.ruleset_grid
+        local children = ruleset_grid.children
+        for i, config in pairs(preset) do
+            row = children[i] and children[i].valid and children[i]
+            if row then
+                row.assembler.elem_value = config.from or nil
+                GUI.update_modules(pdata, i)
+            else
+                GUI.add_config_row(pdata, i, ruleset_grid)
+            end
+        end
+        local c = #ruleset_grid.children
+        local c_preset = #preset
+        if c > c_preset then
+            for i = c_preset + 1, c do
+                GUI.deregister_action(ruleset_grid.children[i], pdata, true)
+            end
+        end
+        gui_elements.textfield.text = name or ""
+    end,
+
+    delete_preset = function(event, pdata, args)
+        local storage_frame = pdata.gui_elements.preset_frame
+        if not (storage_frame and storage_frame.valid) then return end
+        local name = args.name
+        GUI.deregister_action(event.element.parent, pdata, true)
+        pdata.storage[name] = nil
+    end,
+
+    set_assembler = function(event, pdata, args)
+        if event.name ~= defines.events.on_gui_elem_changed then return end
+        local ruleset_grid = pdata.gui_elements.ruleset_grid
+        local index = args.index
+        local element = event.element
+        local elem_value = element.elem_value
+        local config_tmp = pdata.config_tmp
+        local config = config_tmp[index]
+        if elem_value == config.from then log("Nothing changed") return end
+        if not elem_value then
+            GUI.clear_rule(pdata, index, element)
+            return
+        end
+
+        local proto = get_entity_from_item_name(elem_value)
+        if not proto then
+            element.elem_value = config.from
+            event.player.print("No entity/invalid entity found for item: " .. elem_value)
+            return
+        elseif not proto.module_inventory_size or proto.module_inventory_size == 0 then
+            element.elem_value = config.from
+            GUI.display_message(event.player, {"module-inserter-item-no-slots"}, true)
+            return
+        end
+
+        local name = proto.name
+        for i = 1, #config_tmp do
+            if index ~= i and config_tmp[i].from == name then
+                GUI.display_message(event.player, {"module-inserter-item-already-set"}, true)
+                GUI.clear_rule(pdata, index, element)
+                return
+            end
+        end
+        config.from = name
+        config.to = {}
+        element.elem_value = name
+        element.tooltip = proto.localised_name
+        GUI.update_modules(pdata, index)
+
+        local c = #config_tmp
+        if index == c and config.from then
+            log("add")
+            GUI.add_config_row(pdata, index + 1, ruleset_grid)
+            ruleset_grid.scroll_to_bottom()
+        elseif c > START_SIZE and index == c - 1 and not config.from then
+            log("remove")
+            GUI.deregister_action(ruleset_grid.children[c], pdata, true)
+            config_tmp[c] = nil
+        end
+    end,
+
+    set_module = function(event, pdata, args)
+        if event.name ~= defines.events.on_gui_elem_changed then return end
+        local frame = pdata.gui_elements.config_frame
+        local config_tmp = pdata.config_tmp
+        if not (frame and frame.valid and config_tmp) then return end
+
+        local elem_value = event.element.elem_value
+        local proto = elem_value and game.item_prototypes[elem_value]
+        local index, slot = args.index, args.slot
+
+        local config = config_tmp[index]
+        local modules = config.to
+
+        if proto and config.from and proto.type == "module" then
+            local entity_proto = get_entity_from_item_name(config.from)
+            local itemEffects = proto.module_effects
+            if entity_proto and entity_proto.type == "beacon" and itemEffects and itemEffects.productivity then
+                if itemEffects.productivity ~= 0 and not entity_proto.allowed_effects['productivity'] then
+                    GUI.display_message(event.player, {"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name}, true)
+                    modules[slot] = nil
+                end
+            else
+                modules[slot] = proto.name
+            end
+        elseif not proto then
+            modules[slot] = nil
+        end
+        config.to = modules
+        GUI.update_modules(pdata, index)
+    end,
+}
+
+function GUI.deregister_action(element, pdata, destroy)
+    if not (element and element.valid) then return end
+    local player_gui_actions = pdata.gui_actions
+    if not player_gui_actions then
         return
     end
+    player_gui_actions[element.index] = nil
+    for k, child in pairs(element.children) do
+        GUI.deregister_action(child, pdata)
+    end
+    if destroy then
+        element.destroy()
+    end
+end
 
-    -- Temporary config lives as long as the frame is open, so it has to be created
-    -- every time the frame is opened.
-    global["config-tmp"][player_index] = tmp_config or {}
-    --TODO: expand config size when all entity buttons - 1 are occupied
-    local max_config_size = player.mod_settings.module_inserter_config_size.value
-    -- We need to copy all items from normal config to temporary config.
-    local config_tmp = global["config-tmp"][player_index]
-    local config = global["config"][player_index]
-    --TODO: what is this stupditiy?!
-    for i = 1, max_config_size do
-        if i > #config then
-            config_tmp[i] = {from = false, to = {}}
-        else
-            config_tmp[i] = {
-                from = config[i].from,
-                to = util.table.deepcopy(config[i].to)
-            }
+--[[
+    params = {
+        type: function name
+    }
+--]]
+function GUI.register_action(pdata, element, params)
+    local player_gui_actions = pdata.gui_actions
+    if not player_gui_actions then
+        pdata.gui_actions = {}
+        player_gui_actions = pdata.gui_actions
+    end
+    player_gui_actions[element.index] = params
+end
+
+function GUI.get_event_name(i)
+    for key, v in pairs(defines.events) do
+        if v == i then
+            return key
         end
     end
-    if remote.interfaces.YARM and remote.interfaces.YARM.hide_expando then
-        global.settings[player_index].YARM_old_expando = remote.call("YARM", "hide_expando", player_index)
+end
+
+function GUI.generic_event(event)
+    local gui = event.element
+    if not (gui and gui.valid) then return end
+    local player_index = event.player_index
+    local pdata = global._pdata[player_index]
+    local player_gui_actions = pdata.gui_actions
+    if not player_gui_actions then return end
+
+    local action = player_gui_actions[gui.index]
+    if not action then return end
+
+    --TODO: is that smart?
+    for key, element in pairs(pdata.gui_elements) do
+        if element and not element.valid then
+            error("Invalid element " .. key)
+        end
     end
-    -- Now we can build the GUI
+
+    local player = game.get_player(player_index)
+    local profile_inner = game.create_profiler()
+    local status, err = xpcall(function()
+        profile_inner.reset()
+        event.player = player
+        gui_functions[action.type](event, pdata, action)
+        profile_inner.stop()
+    end, debug.traceback)
+    -- log{"", "Inner: ", profile_inner}
+    --log("Selected: " .. tostring(pdata.selected))
+    --log("Registered gui actions:" .. table_size(player_gui_actions))
+    if not status then
+        log("Error running event: " .. tostring(GUI.get_event_name(event.name)))
+        log("Event: " .. serpent.line(event))
+        log("Action: " ..serpent.line(action and action.type))
+        for _, c in pairs(pdata.config_tmp) do
+            log(serpent.line(c))
+        end
+        --log(serpent.block(pdata.config_tmp, {name = "config_tmp", comment = false}))
+        debugDump(err, true)
+        local trace = debug.traceback(nil, 2)
+        debugDump(trace, true)
+        log(trace)
+        local s
+        for name, elem in pairs(pdata.gui_elements) do
+            s = name .. ": "
+            if elem and not elem.valid then
+                log(s .. "invalid")
+            elseif not elem then
+                log(s .. "nil")
+            end
+        end
+    end
+end
+
+function GUI.init(player, pdata, after_research)
+    if (player.force.technologies["construction-robotics"].researched or after_research) then
+        local button = pdata.gui_elements.main_button
+        if (not (button and button.valid)) then
+            button = mod_gui.get_button_flow(player).add{
+                type = "sprite-button",
+                name = "module_inserter_config_button",
+                style = "module-inserter-button",
+                sprite = "technology/modules"
+            }
+        end
+        GUI.register_action(pdata, button, {type = "main_button"})
+        pdata.gui_elements.main_button = button
+    end
+end
+
+function GUI.add_preset(pdata, storage_table, key)
+    local preset_flow = storage_table.add{
+        type = "flow",
+        direction = "horizontal",
+    }
+    local load = preset_flow.add{
+        type = "button",
+        caption = key,
+    }
+    load.style.width = 150
+    GUI.register_action(pdata, load, {type = "restore_preset", name = key})
+
+    GUI.register_action(pdata,
+        preset_flow.add{
+            type = "sprite-button",
+            style = "mi_delete_preset",
+            sprite = "utility/remove"
+        },
+        {type = "delete_preset", name = key}
+    )
+end
+
+function GUI.add_config_row(pdata, i, scroll_pane)
+    local config_tmp = pdata.config_tmp
+    if not config_tmp[i] then
+        config_tmp[i] = {to = {}}
+    end
+    local assembler = config_tmp[i].from
+    local entity_flow = scroll_pane.add{
+        type = "flow",
+        direction = "horizontal",
+        name = i
+    }
+    local tooltip = (assembler  and game.item_prototypes[assembler]) and game.item_prototypes[assembler].localised_name or {"module-inserter-choose-assembler"}
+    local choose_button = entity_flow.add{
+        type = "choose-elem-button",
+        name = "assembler",
+        style = "slot_button",
+        elem_type = "item",
+        tooltip = tooltip
+    }
+    choose_button.elem_value = assembler or nil
+    choose_button.style.right_margin = 8
+
+    GUI.register_action(pdata, choose_button, {type = "set_assembler", index = i})
+
+    entity_flow.add{
+        type = "flow",
+        direction = "horizontal",
+        name = "modules"
+    }
+    GUI.update_modules(pdata, i)
+end
+
+function GUI.close(pdata, player_index)
+    local frame = pdata.gui_elements.config_frame
+    local was_opened = false
+    if (frame and frame.valid) then
+        GUI.deregister_action(frame, pdata, true)
+        pdata.gui_elements.config_frame = nil
+        pdata.gui_elements.ruleset_grid = nil
+        was_opened = true
+    end
+    local storage_frame = pdata.gui_elements.preset_frame
+    if (storage_frame and storage_frame.valid) then
+        GUI.deregister_action(storage_frame, pdata, true)
+        pdata.gui_elements.preset_frame = nil
+        pdata.gui_elements.storage_grid = nil
+        pdata.gui_elements.textfield = nil
+        was_opened = true
+    end
+    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and pdata.settings.YARM_old_expando then
+        remote.call("YARM", "show_expando", player_index)
+    end
+    return was_opened
+end
+
+function GUI.open_config_frame(player, pdata)
+    local player_index = player.index
+
+    if remote.interfaces.YARM and remote.interfaces.YARM.hide_expando then
+        pdata.settings.YARM_old_expando = remote.call("YARM", "hide_expando", player_index)
+    end
+
+    pdata.config_tmp = util.table.deepcopy(pdata.config)
+    local config_tmp = pdata.config_tmp
+    local max_config_size = #config_tmp
+    max_config_size = (max_config_size > START_SIZE) and max_config_size or START_SIZE
+
     local left = mod_gui.get_frame_flow(player)
-    frame = left.add{
+    local frame = left.add{
         type = "frame",
+        name = "module_inserter_config_frame",
         caption = {"module-inserter-config-frame-title"},
-        name = "module-inserter-config-frame",
         direction = "vertical"
     }
     frame.style.maximal_height = 596
-    global.gui_elements[player_index].config_frame = frame
-
-    local error_label = frame.add{
-        type = "label",
-        caption = "---",
-        name = "module-inserter-error-label"
+    pdata.gui_elements.config_frame = frame
+    local bordered_frame = frame.add{
+        type = "frame",
+        style = "bordered_frame",
+        direction = "vertical",
     }
-    error_label.style.minimal_width = 200
-
-    local scroll_pane = frame.add{
+    bordered_frame.style.horizontally_stretchable = true
+    local scroll_pane = bordered_frame.add{
         type = "scroll-pane",
-        name = "module-inserter-config-pane"
+        --vertical_scroll_policy = "auto-and-reserve-space"
     }
-    local ruleset_grid = scroll_pane.add{
-        type = "table",
-        column_count = 3,
-        name = "module-inserter-ruleset-grid"
-    }
-    ruleset_grid.add{
-        type = "label",
-        name = "module-inserter-grid-header-1",
-        caption = {"module-inserter-config-header-1"}
-    }
-    ruleset_grid.add{
-        type = "label",
-        caption = "  "
-    }
-    ruleset_grid.add{
-        type = "label",
-        name = "module-inserter-grid-header-2",
-        caption = {"module-inserter-config-header-2"}
-    }
-    --saveVar(global, "test")
+    pdata.gui_elements.ruleset_grid = scroll_pane
     for i = 1, max_config_size do
-        local assembler = config_tmp[i].from
-        assembler = assembler or nil
-        local tooltip = (assembler  and game.item_prototypes[assembler]) and game.item_prototypes[assembler].localised_name or {"module-inserter-choose-assembler"}
-        local choose_button = ruleset_grid.add{
-            type = "choose-elem-button",
-            name = "module-inserter-from-" .. i,
-            style = "slot_button",
-            elem_type = "item",
-            tooltip = tooltip
-        }
-        choose_button.elem_value = assembler
-        ruleset_grid.add{
-            type = "label",
-            caption = "  "
-        }
-
-        ruleset_grid.add{
-            type = "flow",
-            name = "module-inserter-slotflow-" .. i,
-            direction = "horizontal"
-        }
-        GUI.update_modules(player_index, i)
+        GUI.add_config_row(pdata, i, scroll_pane)
+    end
+    --always add one empty row
+    if config_tmp[max_config_size] and config_tmp[max_config_size].from then
+        GUI.add_config_row(pdata, max_config_size + 1, scroll_pane)
     end
 
-    local button_grid = frame.add{
+    local button_grid = bordered_frame.add{
         type = "table",
         column_count = 2,
-        name = "module-inserter-button-grid"
     }
-    button_grid.add{
+    button_grid.style.top_margin = 8
+
+    local apply = button_grid.add{
         type = "button",
-        name = "module-inserter-apply",
         caption = {"module-inserter-config-button-apply"}
     }
-    button_grid.add{
+    GUI.register_action(pdata, apply, {type = "save_changes"})
+
+    local clear = button_grid.add{
         type = "button",
-        name = "module-inserter-clear-all",
         caption = {"module-inserter-config-button-clear-all"}
     }
+    GUI.register_action(pdata, clear, {type = "clear_all"})
+    GUI.open_storage_frame(pdata, left)
+end
 
+function GUI.open_storage_frame(pdata, left)
     local storage_frame = left.add{
         type = "frame",
-        name = "module-inserter-storage-frame",
         caption = {"module-inserter-storage-frame-title"},
         direction = "vertical"
     }
-    global.gui_elements[player_index].preset_frame = storage_frame
+    pdata.gui_elements.preset_frame = storage_frame
     storage_frame.style.maximal_height = 596
     storage_frame.style.maximal_width = 500
 
     local storage_frame_buttons = storage_frame.add{
         type = "table",
         column_count = 2,
-        name = "module-inserter-storage-buttons"
     }
 
-    storage_frame_buttons.add{
+    local textfield = storage_frame_buttons.add{
         type = "textfield",
         text = "",
-        name = "module-inserter-storage-name"
-    }.style.width = 150
-    storage_frame_buttons.add{
+    }
+    textfield.style.width = 150
+    pdata.gui_elements.textfield = textfield
+
+    local save_button = storage_frame_buttons.add{
         type = "button",
         caption = {"gui-save-game.save"},
-        name = "module-inserter-storage-store",
         style = "module-inserter-small-button"
     }
+    GUI.register_action(pdata, save_button, {type = "save_preset"})
 
     local storage_pane = storage_frame.add{
         type = "scroll-pane",
-        name = "module-inserter-storage-pane",
     }
     --scroll_pane.style.maximal_height = 480 * (1 / player.display_scale)
-    local storage_table = storage_pane.add{
-        type = "flow",
-        --column_count = 3,
-        direction = "vertical",
-        name = "module-inserter-storage-grid"
-    }
+    -- local storage_table = storage_pane.add{
+    --     type = "flow",
+    --     --column_count = 3,
+    --     direction = "vertical",
+    -- }
+    pdata.gui_elements.storage_grid = storage_pane
 
-    if global["storage"][player_index] then
-        for key, _ in pairs(global["storage"][player_index]) do
-            GUI.add_preset(storage_table, key)
+    if pdata.storage then
+        for key, _ in pairs(pdata.storage) do
+            GUI.add_preset(pdata, storage_pane, key)
         end
     end
 end
 
-function GUI.save_changes(player_index, name)
-    -- Saving changes consists in:
-    --   1. copying config-tmp to config
-    --   2. removing config-tmp
-    --   3. closing the frame
-
-    local tmp = {}
-    for i = 1, #global["config-tmp"][player_index] do
-        -- Rule can be saved only if both "from" and "to" fields are set. <-- WHY????
-
-        if not global["config-tmp"][player_index][i] or type(global["config-tmp"][player_index][i].to) ~= "table" then
-            tmp[i] = { from = false, to = {} }
+function GUI.display_message(player, message, sound)
+    player.surface.create_entity{name = "flying-text", position = player.position, text = message, color = {r=1, g=1, b=1}}
+    if sound then
+        if sound == "success" then
+            player.play_sound{path = "utility/console_message", position = player.position}
         else
-            tmp[i] = {
-                from = global["config-tmp"][player_index][i].from,
-                to = global["config-tmp"][player_index][i].to
-            }
+            player.play_sound{path = "utility/cannot_build", position = player.position}
         end
     end
-    global["config"][player_index] = tmp
-    local storage_frame = global.gui_elements[player_index].preset_frame
-    if (storage_frame and storage_frame.valid) then
-        local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
-        textfield.text = name or ""
-    end
-    --global["config-tmp"][player_index] = nil
-    --saveVar(global, "saved")
-    -- local frame = global.gui_elements[player_index].config_frame
-    -- local storage_frame = global.gui_elements[player_index].preset_frame
-
-    -- if frame then
-    --     frame.destroy()
-    --     if storage_frame then
-    --         storage_frame.destroy()
-    --     end
-    --     if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and global.settings[player_index].YARM_old_expando then
-    --         remote.call("YARM", "show_expando", player_index)
-    --     end
-    -- end
 end
 
-function GUI.clear_all(player, player_index)
-    local frame = global.gui_elements[player_index].config_frame
-    if not (frame and frame.valid) then return end
-    local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
-
-    for i = 1, player.mod_settings.module_inserter_config_size.value do
-        global["config-tmp"][player_index][i] = { from = false, to = {} }
-        ruleset_grid["module-inserter-from-" .. i].elem_value = nil
-        GUI.update_modules(player_index, i)
-    end
-    local storage_frame = global.gui_elements[player_index].preset_frame
-    if (storage_frame and storage_frame.valid) then
-        local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
-        textfield.text = ""
-    end
+function GUI.clear_rule(pdata, index, element)
+    log("Clearing")
+    element.elem_value = nil
+    element.tooltip = {"module-inserter-choose-assembler"}
+    pdata.config_tmp[index] = {to = {}}
+    GUI.update_modules(pdata, index)
+    GUI.update_rows(pdata)
 end
 
-function GUI.display_message(frame, storage, message)
-    local label_name = "module-inserter-"
-    if storage then label_name = label_name .. "storage-" end
-    label_name = label_name .. "error-label"
-
-    local error_label = frame[label_name]
-    if not (error_label and error_label.valid) then return end
-
-    if message ~= "---" and not type(message) == "table" then
-        message = {message}
-    end
-    error_label.caption = message
-end
-
-function GUI.set_rule(player_index, index, proto, element)
-    local frame = global.gui_elements[player_index].config_frame
-    local config_tmp = global["config-tmp"][player_index]
-    if not (frame and frame.valid and config_tmp) then return end
-
-    if proto and (not proto.module_inventory_size or proto.module_inventory_size == 0) then
-        GUI.display_message(frame, false, "module-inserter-item-no-slots")
-        element.elem_value = nil
-        return
-    end
-
-    local name = proto and proto.name
-    if name then
-        for i = 1, #config_tmp do
-            if index ~= i and config_tmp[i].from == name then
-                GUI.display_message(frame, false, "module-inserter-item-already-set")
-                element.elem_value = nil
-                --saveVar(global, "test")
-                return
+function GUI.update_rows(pdata)
+    local size = #pdata.config_tmp
+    local children = pdata.gui_elements.ruleset_grid.children
+    local c_size = #children
+    local start = size > c_size and size or c_size
+    if start > START_SIZE then
+        local config_tmp = pdata.config_tmp
+        log("start: " .. start)
+        log("c_size: " .. c_size)
+        log("size: " .. size)
+        for i = start, START_SIZE + 1, -1 do
+            if not config_tmp[i] or (not config_tmp[i].from and not config_tmp[i-1].from) then
+                config_tmp[i] = nil
+                if children[i] and children[i].valid then
+                    GUI.deregister_action(children[i], pdata, true)
+                end
+            else
+                break
             end
         end
+        log(#config_tmp)
+        log("c " .. #pdata.gui_elements.ruleset_grid.children)
     end
-
-    if name ~= config_tmp[index].from then
-        config_tmp[index].to = {}
-    end
-    config_tmp[index].from = name
-    local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
-    local sprite = config_tmp[index].from or nil
-    local tooltip = proto and proto.localised_name or {"module-inserter-choose-assembler"}
-
-    local choose_button = ruleset_grid["module-inserter-from-" .. index]
-    choose_button.elem_value = sprite
-    choose_button.tooltip = tooltip
-
-    GUI.update_modules(player_index, index)
 end
 
-function GUI.set_modules(player_index, index, slot, proto)
-    local frame = global.gui_elements[player_index].config_frame
-    local config_tmp = global["config-tmp"][player_index]
-    if not (frame and frame.valid and config_tmp) then return end
+function GUI.update_modules(pdata, index)
+    local config_tmp = pdata.config_tmp[index]
+    local slots = config_tmp and config_tmp.from and global.nameToSlots[config_tmp.from] or 1
+    local modules = config_tmp and config_tmp.to or {}
+    local flow = pdata.gui_elements.ruleset_grid[tostring(index)].modules
 
-    local config = config_tmp[index]
-    local modules = type(config.to) == "table" and config.to or {}
-
-    if proto and proto.type == "module" then
-        local entity_proto = game.entity_prototypes[config.from]
-        local itemEffects = proto.module_effects
-        if entity_proto.type == "beacon" and itemEffects and itemEffects.productivity then
-            if itemEffects.productivity ~= 0 and not entity_proto.allowed_effects['productivity'] then
-                GUI.display_message(frame,false,{"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name})
-                modules[slot] = false
-            end
-        else
-            modules[slot] = proto.name
-        end
-    elseif not proto then
-        modules[slot] = false
-    -- else
-    --     GUI.display_message(frame,false,"module-inserter-item-no-module")
-    --     return
-    end
-    config.to = modules
-    --saveVar(global, "test2")
-    GUI.update_modules(player_index, index)
-end
-
-function GUI.update_modules(player_index, index)
-    local frame = global.gui_elements[player_index].config_frame
-    local slots = global.nameToSlots[global["config-tmp"][player_index][index].from] or 1
-    local modules = global["config-tmp"][player_index][index].to
-    local flow = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]["module-inserter-slotflow-" .. index]
-    flow.clear()
+    local locked = not config_tmp.from
     local tooltip = {"module-inserter-choose-module"}
-    for i=1,slots do
-        local choose_button = flow.add{
-            type = "choose-elem-button",
-            name = "module-inserter-to-" .. index .. "-" .. i,
-            style = "slot_button",
-            elem_type = "item",
-        }
-        choose_button.elem_value = modules[i] or nil
-        choose_button.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or tooltip
-    end
-end
+    local child_count = #flow.children
 
-function GUI.store(player_index)
-    local storage_frame = global.gui_elements[player_index].preset_frame
-    if not (storage_frame and storage_frame.valid) then return end
-    local textfield = storage_frame["module-inserter-storage-buttons"]["module-inserter-storage-name"]
-    local name = textfield.text
-
-    if name == "" then
-        GUI.display_message(storage_frame, true, "module-inserter-storage-name-not-set")
-        return
-    end
-    if global["storage"][player_index][name] then
-        GUI.display_message(storage_frame, true, "module-inserter-storage-name-in-use")
-        return
-    end
-
-    global["storage"][player_index][name] = {}
-    for i = 1, #global["config-tmp"][player_index] do
-        global["storage"][player_index][name][i] = {
-            from = global["config-tmp"][player_index][i].from,
-            to = util.table.deepcopy(global["config-tmp"][player_index][i].to)
-        }
-    end
-
-    local storage_grid = storage_frame["module-inserter-storage-pane"]["module-inserter-storage-grid"]
-    GUI.add_preset(storage_grid, name)
-    textfield.text = ""
-    --saveVar(global, "stored")
-end
-
-function GUI.restore(player, player_index, element)
-    local frame = global.gui_elements[player_index].config_frame
-    local storage_frame = global.gui_elements[player_index].preset_frame
-    if not (frame and frame.valid and storage_frame and storage_frame.valid) then return end
-
-    local name = element.caption
-    local preset = global["storage"][player_index][name]
-    if not preset then return end
-
-    global["config-tmp"][player_index] = {}
-    local ruleset_grid = frame["module-inserter-config-pane"]["module-inserter-ruleset-grid"]
-    local config_tmp = global["config-tmp"][player_index]
-    for i = 1, player.mod_settings.module_inserter_config_size.value do
-        if i > #preset then
-            config_tmp[i] = {from = false, to = {}}
+    for i, child in pairs(flow.children) do
+        if i <= slots then
+            child.elem_value = modules[i] or nil
+            child.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or tooltip
+            child.locked = locked
+            if not locked then
+                GUI.register_action(pdata, child, {type = "set_module", index = index, slot = i})
+            end
         else
-            config_tmp[i] = {
-                from = preset[i].from,
-                to = util.table.deepcopy(preset[i].to)
-            }
+            GUI.deregister_action(child, pdata, true)
         end
-        local assembler = config_tmp[i].from or nil
-        ruleset_grid["module-inserter-from-" .. i].elem_value = assembler
-        GUI.update_modules(player_index, i)
     end
-    GUI.save_changes(player_index, name)
-end
-
-function GUI.remove(player_index, element)
-    if not global["storage"][player_index] then return end
-    local storage_frame = global.gui_elements[player_index].preset_frame
-    if not (storage_frame and storage_frame.valid) then return end
-    local preset_flow = element.parent
-    local name = preset_flow.children[1]
-    name = (name and name.valid) and name.caption
-    preset_flow.destroy()
-
-    global["storage"][player_index][name] = nil
+    if child_count < slots then
+        for i = child_count + 1 , slots do
+            local choose_button = flow.add{
+                type = "choose-elem-button",
+                style = "slot_button",
+                elem_type = "item",
+            }
+            choose_button.elem_value = modules[i] or nil
+            choose_button.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or tooltip
+            choose_button.locked = locked
+            GUI.register_action(pdata, choose_button, {type = "set_module", index = index, slot = i})
+        end
+    end
 end
 
 return GUI
