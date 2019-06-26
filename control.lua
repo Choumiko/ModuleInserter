@@ -12,14 +12,16 @@ local MOD_NAME = "ModuleInserter"
 local UPDATE_RATE = 117
 local _productivity = {}
 
-local function productivity_allowed(module, recipe)
+local function productivity_allowed(recipe, module_proto)--luacheck: ignore
     if _productivity[recipe] == nil then
         _productivity[recipe] = false
-        local limits = module and game.item_prototypes[module].limitations or {}
-        for _, r in pairs(limits) do
-            if r == recipe then
-                _productivity[recipe] = true
-                break
+        local limits = module_proto and module_proto.limitations
+        if limits and next(limits) then
+            for _, r in pairs(limits) do
+                if r == recipe then
+                    _productivity[recipe] = true
+                    break
+                end
             end
         end
     end
@@ -27,7 +29,7 @@ local function productivity_allowed(module, recipe)
 end
 
 local function compare_contents(tbl1, tbl2)
-    if tbl1 == tbl2 then log("ha") return true end
+    if tbl1 == tbl2 then return true end
     for k, value in pairs(tbl1) do
         if (value ~= tbl2[k]) then return false end
     end
@@ -118,9 +120,9 @@ local function conditional_events(check)
     end
 end
 
-local function drop_module(entity, name, count, module_inventory, chest, player)--luacheck: ignore
+local function drop_module(entity, name, count, module_inventory, chest, player, create_entity)--luacheck: ignore
     if not (chest and chest.valid) then
-        chest = entity.surface.create_entity{
+        chest = create_entity{
             name = "module_inserter_pickup",
             --name = "wooden-chest",
             position = entity.position,
@@ -147,13 +149,14 @@ local function drop_module(entity, name, count, module_inventory, chest, player)
     return chest
 end
 
-local function create_request_proxy(entity, modules, desired, proxies, player)
+local function create_request_proxy(entity, ent_name, modules, desired, proxies, player, create_entity)
     local module_inventory = entity.get_module_inventory()
     if not module_inventory then
         return proxies
     end
 
     local contents = module_inventory.get_contents()
+    --TODO maybe worth doing 2 special cases: contents or modules being empty tables
     local same = compare_contents(desired, contents)
 
     if not same then
@@ -169,7 +172,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
             if diff < 0 then
                 missing[name] = -1 * diff
             elseif diff > 0 then
-                chest = drop_module(entity, name, diff, module_inventory, chest, player)
+                chest = drop_module(entity, name, diff, module_inventory, chest, player, create_entity)
                 surplus[name] = diff
             end
         end
@@ -179,7 +182,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
             if diff < 0 then
                 missing[name] = -1 * diff
             elseif diff > 0 then
-                chest = drop_module(entity, name, diff, module_inventory, chest, player)
+                chest = drop_module(entity, name, diff, module_inventory, chest, player, create_entity)
                 surplus[name] = diff
                 changed = true
             end
@@ -197,8 +200,8 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
                 target = entity,
                 modules = missing
             }
-            local ghost = entity.surface.create_entity(module_proxy)--luacheck: ignore
-            proxies[entity.unit_number] = {name = entity.name, proxy = ghost, modules = modules, cTable = desired, target = entity}
+            local ghost = create_entity(module_proxy)--luacheck: ignore
+            proxies[entity.unit_number] = {name = ent_name, proxy = ghost, modules = modules, cTable = desired, target = entity}
         end
     end
     if same then
@@ -207,9 +210,33 @@ local function create_request_proxy(entity, modules, desired, proxies, player)
     return proxies
 end
 
+--True if module can be used for recipe
+local _recipe_to_module = {}
+local function module_usable(module, recipe)--luacheck: ignore
+    if not _recipe_to_module[recipe] then
+        _recipe_to_module[recipe] = {}
+    end
+    if _recipe_to_module[recipe][module] == nil then
+        local module_proto = game.item_prototypes[module]
+        local limits = module_proto and module_proto.limitations
+        if not (limits and next(limits)) then
+            _recipe_to_module[recipe][module] = true
+            return true
+        end
+        local productivity = module_proto and module_proto.module_effects
+        productivity = productivity and productivity.productivity
+        if productivity and productivity.bonus ~= 0 and recipe and not productivity_allowed(recipe, module_proto) then
+            _recipe_to_module[recipe][module] = false
+            return false
+        end
+        _recipe_to_module[recipe][module] = true
+    end
+    return _recipe_to_module[recipe][module]
+end
+
 local function on_player_selected_area(event)
     local status, err = pcall(function()
-        log("Entities: " .. #event.entities)
+        local p = game.create_profiler()
         profiler.Start(true)
         local player_index = event.player_index
         if event.item ~= "module-inserter" or not player_index then return end
@@ -221,10 +248,9 @@ local function on_player_selected_area(event)
         local check_tick = event.tick + UPDATE_RATE
         local proxies = global.proxies[check_tick] or {}
         local ent_type, ent_name
-        local _entity_prototypes = game.entity_prototypes
-        local _item_prototypes = game.item_prototypes
+        --local entity_configs = {}
+        local create_entity = player.surface.create_entity
         for _, entity in pairs(event.entities) do
-            ent_type = entity.type
             ent_name = entity.name
             --remove existing proxies if we have a config for it's target
             if ent_name == "item-request-proxy" then
@@ -245,37 +271,44 @@ local function on_player_selected_area(event)
             if not global.nameToSlots[ent_name] then
                 goto continue
             end
-            local entity_config = config_exists(config, ent_name)
+            --TODO check at what point it costs more than it saves
+            -- if entity_configs[ent_name] == nil then
+            --     entity_configs[ent_name] = config_exists(config, ent_name)
+            -- end
+            local entity_config = config_exists(config, ent_name)--entity_configs[ent_name]
             if not entity_config then
                 goto continue
             end
+            ent_type = entity.type
             local recipe = ent_type == "assembling-machine" and entity.get_recipe()
             if ent_type == "assembling-machine" and not recipe then
                 player.print("Can't insert modules in assembler without recipe")
                 goto continue
             end
-            local modules = entity_config.to--util.table.deepcopy(entity_config.to)
-            local cTable = {}
-            local entity_proto = _entity_prototypes[ent_name]
-            for _, module in pairs(modules) do
-                if module then
-                    cTable[module] = (cTable[module] or 0) + 1
-                end
-                local prototype = module and _item_prototypes[module]
-                if prototype and prototype.module_effects and prototype.module_effects["productivity"] then
-                    if prototype.module_effects["productivity"] ~= 0 then
-                        if ent_type == "beacon" and not entity_proto.allowed_effects['productivity'] then
-                            player.print({"inventory-restriction.cant-insert-module", prototype.localised_name, entity.localised_name})
-                            goto continue
+            local cTable = entity_config.cTable
+            if entity_config.limitations and recipe then
+                -- local _item_prototypes = game.item_prototypes
+                -- local prototype, productivity
+                local message = false
+                recipe = recipe.name
+                for module, _ in pairs(cTable) do
+                    -- prototype = _item_prototypes[module]
+                    -- productivity = prototype and prototype.module_effects
+                    -- productivity = productivity and productivity.productivity
+                    -- if productivity and productivity.bonus ~= 0 and ent_type == "assembling-machine" and recipe and not productivity_allowed(recipe, prototype) then
+                    if not module_usable(module, recipe) then
+                        if not message then
+                            message = "item-limitation.production-module-usable-only-on-intermediates"
                         end
-                        if ent_type == "assembling-machine" and recipe and next(prototype.limitations) and not productivity_allowed(module, recipe.name) then
-                            player.print({"item-limitation." .. prototype.limitation_message_key})
-                            goto continue
-                        end
+                        break
                     end
                 end
+                if message then
+                    player.print({message})
+                    goto continue
+                end
             end
-            proxies = create_request_proxy(entity, modules, cTable, proxies, player)
+            proxies = create_request_proxy(entity, ent_name, entity_config.to, cTable, proxies, player, create_entity)
             ::continue::
         end
         if next(proxies) then
@@ -284,7 +317,11 @@ local function on_player_selected_area(event)
             global.proxies[check_tick] = nil
         end
         conditional_events()
+        p.stop()
         profiler.Stop()
+        log("Entities: " .. #event.entities)
+        log({"", p})
+        p = nil--luacheck: ignore
     end)
     if not status then
         debugDump(err, true)
@@ -337,46 +374,23 @@ end
 
 local function remove_invalid_items()
     local items = game.item_prototypes
-    for _, pdata in pairs(global._pdata) do
-        for name, p in pairs(pdata.config) do
-            for i=#p,1,-1 do
-                if p[i].from == false then
-                    p[i].from = nil
-                end
-                if p[i].from and not items[p[i].from] then
-                    pdata.config[name][i].from = nil
-                    pdata.config[name][i].to = {}
-                    debugDump(p[i].from,true)
-                end
-                if type(p[i].to) == "table" then
-                    for k, m in pairs(p[i].to) do
-                        if m and not items[m] then
-                            pdata.config[name][i].to[k] = nil
-                        end
-                    end
+    local function _remove(tbl)
+        for _, config in pairs(tbl) do
+            for k, m in pairs(config.to) do
+                if m and not items[m] then
+                    config.to[k] = nil
+                    config.cTable[m] = nil
                 end
             end
         end
-
-        for player, store in pairs(pdata.storage) do
-            for name, p in pairs(store) do
-                for i=#p,1,-1 do
-                    if p[i].from == false then
-                        p[i].from = nil
-                    end
-                    if p[i].from and not items[p[i].from] then
-                        pdata.storage[player][name][i].from = nil
-                        pdata.storage[player][name][i].to = {}
-                    end
-                    if type(p[i].to) == "table" then
-                        for k, m in pairs(p[i].to) do
-                            if m and not items[m] then
-                                pdata.storage[player][name][i].to[k] = nil
-                            end
-                        end
-                    end
-                end
-            end
+    end
+    for _, pdata in pairs(global._pdata) do
+        _remove(pdata.config)
+        if pdata.config_tmp then
+            _remove(pdata.config_tmp)
+        end
+        for _, preset in pairs(pdata.storage) do
+            _remove(preset)
         end
     end
 end
@@ -441,39 +455,43 @@ local function on_configuration_changed(data)
 
             if oldVersion < v"4.0.1" then
                 --saveVar(global, "preUpdate")
-                for name, p in pairs(global.config) do
-                    for i=#p,1,-1 do
-                        if p[i].from == "" then
-                            global.config[name][i].from = nil
-                            global.config[name][i].to = {}
-                        end
-                        if type(p[i].to) ~= "table" then
-                            global.config[name][i].to = {}
-                        end
-                    end
-                end
-
-                for name, p in pairs(global["config-tmp"]) do
-                    for i=#p,1,-1 do
-                        if p[i].from == "" then
-                            global["config-tmp"][name][i].from = nil
-                            global["config-tmp"][name][i].to = {}
-                        end
-                        if type(p[i].to) ~= "table" then
-                            global["config-tmp"][name][i].to = {}
-                        end
-                    end
-                end
-
-                for player, store in pairs(global.storage) do
-                    for name, p in pairs(store) do
+                if global.config then
+                    for name, p in pairs(global.config) do
                         for i=#p,1,-1 do
                             if p[i].from == "" then
-                                global.storage[player][name][i].from = nil
-                                global.storage[player][name][i].to = {}
+                                global.config[name][i].from = nil
+                                global.config[name][i].to = {}
                             end
                             if type(p[i].to) ~= "table" then
-                                global.storage[player][name][i].to = {}
+                                global.config[name][i].to = {}
+                            end
+                        end
+                    end
+                end
+                if global["config-tmp"] then
+                    for name, p in pairs(global["config-tmp"]) do
+                        for i=#p,1,-1 do
+                            if p[i].from == "" then
+                                global["config-tmp"][name][i].from = nil
+                                global["config-tmp"][name][i].to = {}
+                            end
+                            if type(p[i].to) ~= "table" then
+                                global["config-tmp"][name][i].to = {}
+                            end
+                        end
+                    end
+                end
+                if global.storage then
+                    for player, store in pairs(global.storage) do
+                        for name, p in pairs(store) do
+                            for i=#p,1,-1 do
+                                if p[i].from == "" then
+                                    global.storage[player][name][i].from = nil
+                                    global.storage[player][name][i].to = {}
+                                end
+                                if type(p[i].to) ~= "table" then
+                                    global.storage[player][name][i].to = {}
+                                end
                             end
                         end
                     end
@@ -504,6 +522,7 @@ local function on_configuration_changed(data)
                 if global.entitiesToInsert then
                     for key, origEntity in pairs(global.entitiesToInsert) do
                         if origEntity.entity and origEntity.entity.valid and type(origEntity.modules) == "table" then
+                            local ent = origEntity.entity
                             player = origEntity.player and origEntity.player.valid and origEntity.player
                             cTable = {}
                             for _, module in pairs(origEntity.modules) do
@@ -511,7 +530,7 @@ local function on_configuration_changed(data)
                                     cTable[module] = (cTable[module] or 0) + 1
                                 end
                             end
-                            proxies = create_request_proxy(origEntity.entity, origEntity.modules, cTable, proxies, player)
+                            proxies = create_request_proxy(ent, ent.name, origEntity.modules, cTable, proxies, player, ent.surface.create_entity)
                         end
                         global.entitiesToInsert[key] = nil
                     end
@@ -540,10 +559,42 @@ local function on_configuration_changed(data)
                 global.storage = nil
                 global.settings = nil
             end
+            if oldVersion < v'4.1.2' then
+                local _item_prototypes = game.item_prototypes
+                local function create_cTable(tbl)
+                    for i, item_config in pairs(tbl) do
+                        item_config.cTable = {}
+                        local prototype, limitations
+                        for _, module in pairs(item_config.to) do
+                            if module then
+                                prototype = _item_prototypes[module]
+                                limitations = prototype and prototype.limitations
+                                if limitations and next(limitations) then
+                                    item_config.limitations = true
+                                end
+                                item_config.cTable[module] = (item_config.cTable[module] or 0) + 1
+                            end
+                        end
+                    end
+                end
+                for _, pdata in pairs(global._pdata) do
+                    create_cTable(pdata.config)
+                    create_cTable(pdata.config_tmp)
+                    for _, preset in pairs(pdata.storage) do
+                        create_cTable(preset)
+                    end
+                end
+            end
             global.version = tostring(newVersion) --do i really need that?
         end
     end
     getMetaItemData()
+    --TODO: this shouldn't be possible, since i prevent it being set in the gui?
+    --!Unless prototypes change the restrictions between configuring and selecting an area -> on_config_changed could do a check?
+    -- if ent_type == "beacon" and not entity_proto.allowed_effects['productivity'] then
+    --     player.print({"inventory-restriction.cant-insert-module", prototype.localised_name, entity.localised_name})
+    --     goto continue
+    -- end
     remove_invalid_items()
     conditional_events(true)
     --check for other mods
@@ -578,23 +629,23 @@ end
 script.on_event(defines.events.on_runtime_mod_setting_changed, on_runtime_mod_setting_changed)
 
 local function on_pre_mined_item(event)
-    local status, err = pcall(function()
-        if event.entity and global.nameToSlots[event.entity.name] then
-            local entity = event.entity
-            for tick, proxies in pairs(global.proxies) do
-                if proxies[entity.unit_number] then
-                    proxies[entity.unit_number] = nil
-                    if not next(proxies) then
-                        global.proxies[tick] = nil
+    if event.entity and event.entity.valid and global.nameToSlots[event.entity.name] then
+        local status, err = pcall(function()
+                local id = event.entity.unit_number
+                for tick, proxies in pairs(global.proxies) do
+                    if proxies[id] then
+                        proxies[id] = nil
+                        if not next(proxies) then
+                            global.proxies[tick] = nil
+                        end
                     end
                 end
-            end
-            conditional_events()
+                conditional_events()
+        end)
+        if not status then
+            debugDump(err, true)
+            conditional_events(true)
         end
-    end)
-    if not status then
-        debugDump(err, true)
-        conditional_events(true)
     end
 end
 
