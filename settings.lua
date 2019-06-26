@@ -9,6 +9,13 @@ data:extend({
         maximum_value = 200, --don't trust factorians..
         order = "a"
     },
+    {
+        type = "bool-setting",
+        name = prefix .. "overwrite",
+        setting_type = "runtime-per-user",
+        default_value = true,
+        order = "b"
+    },
     -- {
     --     type = "bool-setting",
     --     name = prefix .. "enable_module",

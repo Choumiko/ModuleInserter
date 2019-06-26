@@ -65,8 +65,16 @@ local gui_functions = {
             return
         end
         if pdata.storage[name] then
-            GUI.display_message(event.player, {"module-inserter-storage-name-in-use"}, true)
-            return
+            if not event.player.mod_settings["module_inserter_overwrite"].value then
+                GUI.display_message(event.player, {"module-inserter-storage-name-in-use", name}, true)
+                textfield.select_all()
+                textfield.focus()
+                return
+            else
+                pdata.storage[name] = util.table.deepcopy(pdata.config_tmp)
+                GUI.display_message(event.player, {"module-inserter-storage-updated", name}, "success")
+                return
+            end
         end
 
         pdata.storage[name] = util.table.deepcopy(pdata.config_tmp)
@@ -111,9 +119,8 @@ local gui_functions = {
     delete_preset = function(event, pdata, args)
         local storage_frame = pdata.gui_elements.preset_frame
         if not (storage_frame and storage_frame.valid) then return end
-        local name = args.name
         GUI.deregister_action(event.element.parent, pdata, true)
-        pdata.storage[name] = nil
+        pdata.storage[args.name] = nil
     end,
 
     set_assembler = function(event, pdata, args)
