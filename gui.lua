@@ -38,7 +38,7 @@ local gui_functions = {
 
         for i = 1, #pdata.config_tmp do
             if i <= START_SIZE then
-                pdata.config_tmp[i]= {to = {}}
+                pdata.config_tmp[i]= {to = {}, cTable = {}}
                 ruleset_grid.children[i].assembler.elem_value = nil
                 GUI.update_modules(pdata, i)
             else
@@ -158,6 +158,7 @@ local gui_functions = {
         end
         config.from = name
         config.to = {}
+        config.cTable = {}
         element.elem_value = name
         element.tooltip = proto.localised_name
         GUI.update_modules(pdata, index)
@@ -202,6 +203,22 @@ local gui_functions = {
             modules[slot] = nil
         end
         config.to = modules
+        config.productivity = nil
+
+        local cTable = {}
+        local prototype, limitations
+        local _item_prototypes = game.item_prototypes
+        for _, module in pairs(modules) do
+            if module then
+                prototype = _item_prototypes[module]
+                limitations = prototype and prototype.limitations
+                if limitations and next(limitations) then
+                    config.limitations = true
+                end
+                cTable[module] = (cTable[module] or 0) + 1
+            end
+        end
+        config.cTable = cTable
         GUI.update_modules(pdata, index)
     end,
 }
@@ -337,7 +354,7 @@ end
 function GUI.add_config_row(pdata, i, scroll_pane)
     local config_tmp = pdata.config_tmp
     if not config_tmp[i] then
-        config_tmp[i] = {to = {}}
+        config_tmp[i] = {to = {}, cTable = {}}
     end
     local assembler = config_tmp[i].from
     local entity_flow = scroll_pane.add{
@@ -511,7 +528,7 @@ function GUI.clear_rule(pdata, index, element)
     log("Clearing")
     element.elem_value = nil
     element.tooltip = {"module-inserter-choose-assembler"}
-    pdata.config_tmp[index] = {to = {}}
+    pdata.config_tmp[index] = {to = {}, cTable = {}}
     GUI.update_modules(pdata, index)
     GUI.update_rows(pdata)
 end
@@ -529,9 +546,7 @@ function GUI.update_rows(pdata)
         for i = start, START_SIZE + 1, -1 do
             if not config_tmp[i] or (not config_tmp[i].from and not config_tmp[i-1].from) then
                 config_tmp[i] = nil
-                if children[i] and children[i].valid then
-                    GUI.deregister_action(children[i], pdata, true)
-                end
+                GUI.deregister_action(children[i], pdata, true)
             else
                 break
             end
