@@ -16,3 +16,6 @@ table.insert(
     data.raw["technology"]["construction-robotics"]["effects"],
     { type = "unlock-recipe", recipe = "module-inserter" }
 )
+
+-- data.raw.module["speed-module"].limitation = {"iron-gear-wheel"}
+-- data.raw.module["speed-module"]["limitation_message_key"] = "production-module-usable-only-on-intermediates"

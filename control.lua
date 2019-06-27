@@ -10,23 +10,6 @@ local profiler = require "profiler"
 local MOD_NAME = "ModuleInserter"
 
 local UPDATE_RATE = 117
-local _productivity = {}
-
-local function productivity_allowed(recipe, module_proto)--luacheck: ignore
-    if _productivity[recipe] == nil then
-        _productivity[recipe] = false
-        local limits = module_proto and module_proto.limitations
-        if limits and next(limits) then
-            for _, r in pairs(limits) do
-                if r == recipe then
-                    _productivity[recipe] = true
-                    break
-                end
-            end
-        end
-    end
-    return _productivity[recipe]
-end
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -120,7 +103,7 @@ local function conditional_events(check)
     end
 end
 
-local function drop_module(entity, name, count, module_inventory, chest, player, create_entity)--luacheck: ignore
+local function drop_module(entity, name, count, module_inventory, chest, player, create_entity)
     if not (chest and chest.valid) then
         chest = create_entity{
             name = "module_inserter_pickup",
@@ -156,16 +139,36 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
     end
 
     local contents = module_inventory.get_contents()
-    --TODO maybe worth doing 2 special cases: contents or modules being empty tables
     local same = compare_contents(desired, contents)
 
     if not same then
         local missing = {}
         local surplus = {}
         local changed
+        local diff, chest
+        --Drop all modules and done
+        if not next(desired) then
+            for name, count in pairs(contents) do
+                chest = drop_module(entity, name, count, module_inventory, chest, player, create_entity)
+            end
+            return proxies
+        end
+        --Request all modules and done
+        if not next(contents) then
+            missing = desired
+            local module_proxy = {
+                name = "item-request-proxy",
+                position = entity.position,
+                force = entity.force,
+                target = entity,
+                modules = missing
+            }
+            local ghost = create_entity(module_proxy)
+            proxies[entity.unit_number] = {name = ent_name, proxy = ghost, modules = modules, cTable = desired, target = entity}
+            return proxies
+        end
         --log({"", entity.name, " contents: ", serpent.line(contents)})
         --log({"", entity.name, " desired: ", serpent.line(desired)})
-        local diff, chest
         for name, count in pairs(desired) do
             diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
             contents[name] = nil
@@ -192,7 +195,7 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
             contents = module_inventory.get_contents()
             same = compare_contents(desired, contents)
         end
-        if not same and next(missing)  then
+        if not same and next(missing) then
             local module_proxy = {
                 name = "item-request-proxy",
                 position = entity.position,
@@ -200,7 +203,7 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
                 target = entity,
                 modules = missing
             }
-            local ghost = create_entity(module_proxy)--luacheck: ignore
+            local ghost = create_entity(module_proxy)
             proxies[entity.unit_number] = {name = ent_name, proxy = ghost, modules = modules, cTable = desired, target = entity}
         end
     end
@@ -210,34 +213,10 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
     return proxies
 end
 
---True if module can be used for recipe
-local _recipe_to_module = {}
-local function module_usable(module, recipe)--luacheck: ignore
-    if not _recipe_to_module[recipe] then
-        _recipe_to_module[recipe] = {}
-    end
-    if _recipe_to_module[recipe][module] == nil then
-        local module_proto = game.item_prototypes[module]
-        local limits = module_proto and module_proto.limitations
-        if not (limits and next(limits)) then
-            _recipe_to_module[recipe][module] = true
-            return true
-        end
-        local productivity = module_proto and module_proto.module_effects
-        productivity = productivity and productivity.productivity
-        if productivity and productivity.bonus ~= 0 and recipe and not productivity_allowed(recipe, module_proto) then
-            _recipe_to_module[recipe][module] = false
-            return false
-        end
-        _recipe_to_module[recipe][module] = true
-    end
-    return _recipe_to_module[recipe][module]
-end
-
 local function on_player_selected_area(event)
     local status, err = pcall(function()
-        local p = game.create_profiler()
-        profiler.Start(true)
+        --local p = game.create_profiler()
+        --profiler.Start(true)
         local player_index = event.player_index
         if event.item ~= "module-inserter" or not player_index then return end
         local player = game.get_player(player_index)
@@ -250,6 +229,7 @@ local function on_player_selected_area(event)
         local ent_type, ent_name
         --local entity_configs = {}
         local create_entity = player.surface.create_entity
+        local restricted_modules = global.restricted_modules
         for _, entity in pairs(event.entities) do
             ent_name = entity.name
             --remove existing proxies if we have a config for it's target
@@ -287,16 +267,11 @@ local function on_player_selected_area(event)
             end
             local cTable = entity_config.cTable
             if entity_config.limitations and recipe then
-                -- local _item_prototypes = game.item_prototypes
-                -- local prototype, productivity
                 local message = false
                 recipe = recipe.name
                 for module, _ in pairs(cTable) do
-                    -- prototype = _item_prototypes[module]
-                    -- productivity = prototype and prototype.module_effects
-                    -- productivity = productivity and productivity.productivity
-                    -- if productivity and productivity.bonus ~= 0 and ent_type == "assembling-machine" and recipe and not productivity_allowed(recipe, prototype) then
-                    if not module_usable(module, recipe) then
+                    --if not module_usable(module, recipe) then
+                    if restricted_modules[module] and not restricted_modules[module][recipe] then
                         if not message then
                             message = "item-limitation.production-module-usable-only-on-intermediates"
                         end
@@ -317,18 +292,18 @@ local function on_player_selected_area(event)
             global.proxies[check_tick] = nil
         end
         conditional_events()
-        p.stop()
-        profiler.Stop()
-        log("Entities: " .. #event.entities)
-        log({"", p})
-        p = nil--luacheck: ignore
+        -- p.stop()
+        -- profiler.Stop()
+        -- log("Entities: " .. #event.entities)
+        -- log({"", p})
+        -- p = nil--luacheck: ignore
     end)
     if not status then
         debugDump(err, true)
         conditional_events(true)
-        profiler.Stop(true)
+        --profiler.Stop(true)
     end
-    profiler.Stop(true)
+    --profiler.Stop(true)
 end
 
 local function on_player_alt_selected_area(event)
@@ -363,11 +338,24 @@ script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
 script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
 
 --TODO get # of slots only when necessary
-local function getMetaItemData()
+local function create_lookup_tables()
     global.nameToSlots = {}
     for name, prototype in pairs(game.entity_prototypes) do
         if prototype.module_inventory_size and prototype.module_inventory_size > 0 then
             global.nameToSlots[name] = prototype.module_inventory_size
+        end
+    end
+    global.restricted_modules = {}
+    local limitations
+    for name, module in pairs(game.item_prototypes) do
+        if module.type == "module" then
+            limitations = module.limitations
+            if limitations and next(limitations) then
+                global.restricted_modules[name] = {}
+                for _, recipe in pairs(limitations) do
+                    global.restricted_modules[name][recipe] = true
+                end
+            end
         end
     end
 end
@@ -376,10 +364,19 @@ local function remove_invalid_items()
     local items = game.item_prototypes
     local function _remove(tbl)
         for _, config in pairs(tbl) do
+            if config.from and not items[config.from] then
+                config.from = nil
+                config.to = {}
+                config.cTable = {}
+            end
+            config.limitations = nil
             for k, m in pairs(config.to) do
                 if m and not items[m] then
                     config.to[k] = nil
                     config.cTable[m] = nil
+                end
+                if global.restricted_modules[m] then
+                    config.limitations = true
                 end
             end
         end
@@ -425,7 +422,7 @@ end
 
 local function on_init()
     init_global()
-    getMetaItemData()
+    create_lookup_tables()
 end
 
 local function on_load()
@@ -588,13 +585,7 @@ local function on_configuration_changed(data)
             global.version = tostring(newVersion) --do i really need that?
         end
     end
-    getMetaItemData()
-    --TODO: this shouldn't be possible, since i prevent it being set in the gui?
-    --!Unless prototypes change the restrictions between configuring and selecting an area -> on_config_changed could do a check?
-    -- if ent_type == "beacon" and not entity_proto.allowed_effects['productivity'] then
-    --     player.print({"inventory-restriction.cant-insert-module", prototype.localised_name, entity.localised_name})
-    --     goto continue
-    -- end
+    create_lookup_tables()
     remove_invalid_items()
     conditional_events(true)
     --check for other mods
@@ -675,5 +666,33 @@ remote.add_interface("mi",
         init = function()
             init_global()
             init_players()
+        end,
+
+        profile = function()
+            local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
+            log(#ents)
+
+            for j = 1, 10 do
+                profiler.Start()
+                --local p = game.create_profiler()
+                for i = 1, 10 do
+                    local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick+i}
+                    on_player_selected_area(event)
+                    --p.stop()
+                    for _, current in pairs(global.proxies) do
+                        for k, data in pairs(current) do
+                            if data.proxy and data.proxy.valid then
+                                data.proxy.destroy()
+                            end
+                        end
+                    end
+                    global.proxies = {}
+                    --p.restart()
+                end
+                --p.stop()
+                --p.divide(10)
+                --log{"", p}
+                profiler.Stop()
+            end
         end
     })
