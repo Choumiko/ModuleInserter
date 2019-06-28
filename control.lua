@@ -10,6 +10,7 @@ local profiler = require "profiler"
 local MOD_NAME = "ModuleInserter"
 
 local UPDATE_RATE = 117
+local MAX_PROXIES = 1000
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -46,60 +47,6 @@ local function sort_modules(entity, modules, cTable)
                 inventory.insert{name = name, count = count}
             end
         end
-    end
-end
-
-local function on_tick(event)
-    local tick = event.tick
-    if not global.proxies then global.proxies = {} end
-    local current = global.proxies[tick]
-    if current then
-        local check_tick = tick + UPDATE_RATE
-        local check = global.proxies[check_tick] or {}
-        local entity
-        for k, data in pairs(current) do
-            if data.proxy then
-                entity = (data.target and data.target.valid) and data.target
-                if not data.proxy.valid then
-                    if entity then
-                        sort_modules(entity, data.modules, data.cTable)
-                    end
-                else
-                    if entity then
-                        check[k] = data
-                    end
-                    current[k] = nil
-                end
-            end
-        end
-        if next(check) then
-            global.proxies[check_tick] = check
-        end
-        global.proxies[tick] = nil
-        if table_size(global.proxies) == 0 then
-            script.on_event(defines.events.on_tick, nil)
-        end
-    end
-end
-
-local function conditional_events(check)
-    if check then
-        for tick, proxies in pairs(global.proxies) do
-            for id, data in pairs(proxies) do
-                if not (data.target and data.target.valid) then
-                    proxies[id] = nil
-                end
-            end
-            if tick < game.tick or not next(proxies) then
-                log("Removed old tick: " .. tick .. "(current: " .. game.tick ..")")
-                global.proxies[tick] = nil
-            end
-        end
-    end
-    if table_size(global.proxies) == 0 then
-        script.on_event(defines.events.on_tick, nil)
-    else
-        script.on_event(defines.events.on_tick, on_tick)
     end
 end
 
@@ -213,6 +160,79 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
     return proxies
 end
 
+local function on_tick(event)
+    local tick = event.tick
+    local current = global.proxies[tick]
+    if current then
+        local check_tick = tick + UPDATE_RATE
+        local check = global.proxies[check_tick] or {}
+        local entity
+        for k, data in pairs(current) do
+            if data.proxy then
+                entity = (data.target and data.target.valid) and data.target
+                if not data.proxy.valid then
+                    if entity then
+                        sort_modules(entity, data.modules, data.cTable)
+                    end
+                else
+                    if entity then
+                        check[k] = data
+                    end
+                    current[k] = nil
+                end
+            end
+        end
+        if next(check) then
+            global.proxies[check_tick] = check
+        end
+        global.proxies[tick] = nil
+    end
+    current = global.to_create[tick]
+    if current then
+        local p = game.create_profiler()
+        local check_tick = event.tick + UPDATE_RATE
+        local proxies = global.proxies[check_tick] or {}
+        local ent
+        for _, data in pairs(current) do
+            ent = data.entity
+            ent = ent and ent.valid and ent
+            proxies = create_request_proxy(ent, data.name, data.modules, data.cTable, proxies, data.player, data.surface.create_entity)
+        end
+        if next(proxies) then
+            global.proxies[check_tick] = proxies
+        else
+            global.proxies[check_tick] = nil
+        end
+        global.to_create[tick] = nil
+        p.stop()
+        log{"", "delayed ", p}
+    end
+    if table_size(global.proxies) == 0 and table_size(global.to_create) == 0 then
+        script.on_event(defines.events.on_tick, nil)
+    end
+end
+
+local function conditional_events(check)
+    if check then
+        for tick, proxies in pairs(global.proxies) do
+            for id, data in pairs(proxies) do
+                if not (data.target and data.target.valid) then
+                    proxies[id] = nil
+                end
+            end
+            if tick < game.tick or not next(proxies) then
+                log("Removed old tick: " .. tick .. "(current: " .. game.tick ..")")
+                global.proxies[tick] = nil
+            end
+        end
+    end
+    if table_size(global.proxies) == 0 and global.to_create and table_size(global.to_create) == 0 then
+        script.on_event(defines.events.on_tick, nil)
+    else
+        script.on_event(defines.events.on_tick, on_tick)
+    end
+end
+
 local function on_player_selected_area(event)
     local status, err = pcall(function()
         --local p = game.create_profiler()
@@ -227,10 +247,12 @@ local function on_player_selected_area(event)
         local check_tick = event.tick + UPDATE_RATE
         local proxies = global.proxies[check_tick] or {}
         local ent_type, ent_name
-        --local entity_configs = {}
-        local create_entity = player.surface.create_entity
+        local entity_configs = {}
+        local surface = player.surface
+        local create_entity = surface.create_entity
         local restricted_modules = global.restricted_modules
-        for _, entity in pairs(event.entities) do
+        local delay = 0
+        for i, entity in pairs(event.entities) do
             ent_name = entity.name
             --remove existing proxies if we have a config for it's target
             if ent_name == "item-request-proxy" then
@@ -252,10 +274,10 @@ local function on_player_selected_area(event)
                 goto continue
             end
             --TODO check at what point it costs more than it saves
-            -- if entity_configs[ent_name] == nil then
-            --     entity_configs[ent_name] = config_exists(config, ent_name)
-            -- end
-            local entity_config = config_exists(config, ent_name)--entity_configs[ent_name]
+            if entity_configs[ent_name] == nil then
+                entity_configs[ent_name] = config_exists(config, ent_name)
+            end
+            local entity_config = entity_configs[ent_name]--config_exists(config, ent_name)
             if not entity_config then
                 goto continue
             end
@@ -283,7 +305,22 @@ local function on_player_selected_area(event)
                     goto continue
                 end
             end
-            proxies = create_request_proxy(entity, ent_name, entity_config.to, cTable, proxies, player, create_entity)
+            if i % MAX_PROXIES == 0 then
+                delay = delay + 1
+            end
+            if delay == 0 then
+                proxies = create_request_proxy(entity, ent_name, entity_config.to, cTable, proxies, player, create_entity)
+            else
+                if not global.to_create[event.tick+delay] then global.to_create[event.tick+delay] = {} end
+                global.to_create[event.tick+delay][entity.unit_number] = {
+                    entity = entity,
+                    name = ent_name,
+                    modules = entity_config.to,
+                    cTable = cTable,
+                    player = player,
+                    surface = surface
+                }
+            end
             ::continue::
         end
         if next(proxies) then
@@ -394,7 +431,9 @@ end
 
 local function init_global()
     global.proxies = global.proxies or {}
+    global.to_create = global.to_create or {}
     global.nameToSlots = global.nameToSlots or {}
+    global.restricted_modules = global.restricted_modules or {}
     global._pdata = global._pdata or {}
 end
 
@@ -557,6 +596,7 @@ local function on_configuration_changed(data)
                 global.settings = nil
             end
             if oldVersion < v'4.1.2' then
+                global.to_create = global.to_create or {}
                 local _item_prototypes = game.item_prototypes
                 local function create_cTable(tbl)
                     for i, item_config in pairs(tbl) do
@@ -668,17 +708,25 @@ remote.add_interface("mi",
             init_players()
         end,
 
-        profile = function()
+        profile = function(m, n, fast)
             local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
             log(#ents)
-
-            for j = 1, 10 do
+            local profiler_raw = profiler
+            if fast then
+                profiler = {
+                    p = false,
+                    Start = function() profiler.p = game.create_profiler() end,
+                    Stop = function() profiler.p.stop() end
+                }
+            end
+            m = m or 10
+            n = n or 10
+            for j = 1, m do
                 profiler.Start()
-                --local p = game.create_profiler()
-                for i = 1, 10 do
+                for i = 1, n do
                     local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick+i}
                     on_player_selected_area(event)
-                    --p.stop()
+                    if fast then profiler.Stop() end
                     for _, current in pairs(global.proxies) do
                         for k, data in pairs(current) do
                             if data.proxy and data.proxy.valid then
@@ -687,12 +735,16 @@ remote.add_interface("mi",
                         end
                     end
                     global.proxies = {}
-                    --p.restart()
+                    global.to_create = {}
+                    if fast then profiler.p.restart() end
                 end
-                --p.stop()
-                --p.divide(10)
-                --log{"", p}
+                if fast then
+                    profiler.Stop()
+                    profiler.p.divide(10)
+                    log{"", profiler.p}
+                end
                 profiler.Stop()
             end
+            profiler = profiler_raw
         end
     })

@@ -24,6 +24,7 @@ local function config_exists(config, name)
             return config[i], i
         end
     end
+    return false
 end
 
 local M = {}
