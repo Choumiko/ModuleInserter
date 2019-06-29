@@ -28,8 +28,6 @@ local function sort_modules(entity, modules, cTable)
     if not next(modules) then return end
     local inventory = entity.get_module_inventory()
     local contents = inventory and inventory.get_contents()
-    --log({"", "cTable", serpent.block(cTable)})
-    --log({"", "contents", serpent.block(contents)})
     if compare_contents(cTable, contents) then
         local status, err = pcall(function()
             inventory.clear()
@@ -71,7 +69,6 @@ local function drop_module(entity, name, count, module_inventory, chest, player,
     end
 
     local stack = {name = name, count = count}
-    --log({"", entity.name, " dropped: ", serpent.line(stack)})
     stack.count = chest.insert(stack)
     if module_inventory.remove(stack) ~= stack.count then
         log("Not all modules removed")
@@ -111,11 +108,9 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
                 modules = missing
             }
             local ghost = create_entity(module_proxy)
-            proxies[entity.unit_number] = {name = ent_name, proxy = ghost, modules = modules, cTable = desired, target = entity}
+            proxies[entity.unit_number] = {proxy = ghost, modules = modules, cTable = desired, target = entity}
             return proxies
         end
-        --log({"", entity.name, " contents: ", serpent.line(contents)})
-        --log({"", entity.name, " desired: ", serpent.line(desired)})
         for name, count in pairs(desired) do
             diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
             contents[name] = nil
@@ -137,7 +132,6 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
                 changed = true
             end
         end
-        --log({"", entity.name, " missing: ", serpent.line(missing)})
         if changed then
             contents = module_inventory.get_contents()
             same = compare_contents(desired, contents)
@@ -255,8 +249,6 @@ end
 
 local function on_player_selected_area(event)
     local status, err = pcall(function()
-        --local p = game.create_profiler()
-        --profiler.Start(true)
         local player_index = event.player_index
         if event.item ~= "module-inserter" or not player_index then return end
         local player = game.get_player(player_index)
@@ -339,11 +331,6 @@ local function on_player_selected_area(event)
             global.proxies[check_tick] = nil
         end
         conditional_events()
-        -- p.stop()
-        -- profiler.Stop()
-        -- log("Entities: " .. #event.entities)
-        -- log({"", p})
-        -- p = nil--luacheck: ignore
     end)
     if not status then
         debugDump(err, true)
@@ -356,9 +343,7 @@ end
 local function on_player_alt_selected_area(event)
     local status, err = pcall(function()
         if not event.item == "module-inserter" then return end
-        --player.print("Alt entities: " .. #event.entities)
         for _, entity in pairs(event.entities) do
-            --log(serpent.block({t=entity.type, n=entity.name, g=entity.ghost_name}))
             if entity.name == "item-request-proxy" then
                 for _, proxies in pairs(global.proxies) do
                     if proxies[entity.unit_number] then
@@ -666,8 +651,7 @@ script.on_event(defines.events.on_gui_elem_changed, GUI.generic_event)
 
 local function on_runtime_mod_setting_changed(event)
     local _, err = pcall(function()
-        --log(serpent.block(event))
-        if event.setting == "module_inserter_config_size" and event.player_index then
+        if event.player_index and event.setting == "module_inserter_config_size"then
             local pi = event.player_index
             local pdata = global._pdata[pi]
             GUI.close(pdata, pi)

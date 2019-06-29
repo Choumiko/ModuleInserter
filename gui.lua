@@ -131,7 +131,7 @@ local gui_functions = {
         local elem_value = element.elem_value
         local config_tmp = pdata.config_tmp
         local config = config_tmp[index]
-        if elem_value == config.from then log("Nothing changed") return end
+        if elem_value == config.from then return end
         if not elem_value then
             GUI.clear_rule(pdata, index, element)
             return
@@ -142,13 +142,14 @@ local gui_functions = {
             element.elem_value = config.from
             event.player.print("No entity/invalid entity found for item: " .. elem_value)
             return
-        elseif not proto.module_inventory_size or proto.module_inventory_size == 0 then
+        end
+        local name = proto.name
+        if not global.nameToSlots[name] then
             element.elem_value = config.from
             GUI.display_message(event.player, {"module-inserter-item-no-slots"}, true)
             return
         end
 
-        local name = proto.name
         for i = 1, #config_tmp do
             if index ~= i and config_tmp[i].from == name then
                 GUI.display_message(event.player, {"module-inserter-item-already-set"}, true)
@@ -165,11 +166,9 @@ local gui_functions = {
 
         local c = #config_tmp
         if index == c and config.from then
-            log("add")
             GUI.add_config_row(pdata, index + 1, ruleset_grid)
             ruleset_grid.scroll_to_bottom()
         elseif c > START_SIZE and index == c - 1 and not config.from then
-            log("remove")
             GUI.deregister_action(ruleset_grid.children[c], pdata, true)
             config_tmp[c] = nil
         end
@@ -180,9 +179,9 @@ local gui_functions = {
         local frame = pdata.gui_elements.config_frame
         local config_tmp = pdata.config_tmp
         if not (frame and frame.valid and config_tmp) then return end
-
+        local _item_prototypes = game.item_prototypes
         local elem_value = event.element.elem_value
-        local proto = elem_value and game.item_prototypes[elem_value]
+        local proto = elem_value and _item_prototypes[elem_value]
         local index, slot = args.index, args.slot
 
         local config = config_tmp[index]
@@ -207,7 +206,6 @@ local gui_functions = {
 
         local cTable = {}
         local prototype, limitations
-        local _item_prototypes = game.item_prototypes
         for _, module in pairs(modules) do
             if module then
                 prototype = _item_prototypes[module]
@@ -359,18 +357,18 @@ function GUI.add_preset(pdata, storage_table, key)
     )
 end
 
-function GUI.add_config_row(pdata, i, scroll_pane)
+function GUI.add_config_row(pdata, index, scroll_pane)
     local config_tmp = pdata.config_tmp
-    if not config_tmp[i] then
-        config_tmp[i] = {to = {}, cTable = {}}
+    if not config_tmp[index] then
+        config_tmp[index] = {to = {}, cTable = {}}
     end
-    local assembler = config_tmp[i].from
+    local assembler = config_tmp[index].from
     local entity_flow = scroll_pane.add{
         type = "flow",
         direction = "horizontal",
-        name = i
     }
-    local tooltip = (assembler  and game.item_prototypes[assembler]) and game.item_prototypes[assembler].localised_name or {"module-inserter-choose-assembler"}
+    local assembler_proto = assembler and game.item_prototypes[assembler]
+    local tooltip = assembler_proto and assembler_proto.localised_name or {"module-inserter-choose-assembler"}
     local choose_button = entity_flow.add{
         type = "choose-elem-button",
         name = "assembler",
@@ -381,14 +379,14 @@ function GUI.add_config_row(pdata, i, scroll_pane)
     choose_button.elem_value = assembler or nil
     choose_button.style.right_margin = 8
 
-    GUI.register_action(pdata, choose_button, {type = "set_assembler", index = i})
+    GUI.register_action(pdata, choose_button, {type = "set_assembler", index = index})
 
     entity_flow.add{
         type = "flow",
         direction = "horizontal",
         name = "modules"
     }
-    GUI.update_modules(pdata, i)
+    GUI.update_modules(pdata, index)
 end
 
 function GUI.close(pdata, player_index)
@@ -533,7 +531,6 @@ function GUI.display_message(player, message, sound)
 end
 
 function GUI.clear_rule(pdata, index, element)
-    log("Clearing")
     element.elem_value = nil
     element.tooltip = {"module-inserter-choose-assembler"}
     pdata.config_tmp[index] = {to = {}, cTable = {}}
@@ -548,9 +545,6 @@ function GUI.update_rows(pdata)
     local start = size > c_size and size or c_size
     if start > START_SIZE then
         local config_tmp = pdata.config_tmp
-        log("start: " .. start)
-        log("c_size: " .. c_size)
-        log("size: " .. size)
         for i = start, START_SIZE + 1, -1 do
             if not config_tmp[i] or (not config_tmp[i].from and not config_tmp[i-1].from) then
                 config_tmp[i] = nil
@@ -559,8 +553,6 @@ function GUI.update_rows(pdata)
                 break
             end
         end
-        log(#config_tmp)
-        log("c " .. #pdata.gui_elements.ruleset_grid.children)
     end
 end
 
@@ -568,16 +560,17 @@ function GUI.update_modules(pdata, index)
     local config_tmp = pdata.config_tmp[index]
     local slots = config_tmp and config_tmp.from and global.nameToSlots[config_tmp.from] or 1
     local modules = config_tmp and config_tmp.to or {}
-    local flow = pdata.gui_elements.ruleset_grid[tostring(index)].modules
+    local flow = pdata.gui_elements.ruleset_grid.children[index].modules
 
     local locked = not config_tmp.from
     local tooltip = {"module-inserter-choose-module"}
     local child_count = #flow.children
 
+    local _item_prototypes = game.item_prototypes
     for i, child in pairs(flow.children) do
         if i <= slots then
             child.elem_value = modules[i] or nil
-            child.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or tooltip
+            child.tooltip = modules[i] and _item_prototypes[modules[i]].localised_name or tooltip
             child.locked = locked
             if not locked then
                 GUI.register_action(pdata, child, {type = "set_module", index = index, slot = i})
@@ -594,7 +587,7 @@ function GUI.update_modules(pdata, index)
                 elem_type = "item",
             }
             choose_button.elem_value = modules[i] or nil
-            choose_button.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or tooltip
+            choose_button.tooltip = modules[i] and _item_prototypes[modules[i]].localised_name or tooltip
             choose_button.locked = locked
             GUI.register_action(pdata, choose_button, {type = "set_module", index = index, slot = i})
         end
