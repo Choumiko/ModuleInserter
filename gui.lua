@@ -22,11 +22,12 @@ local gui_functions = {
         end
     end,
 
-    save_changes = function(_, pdata)
+    save_changes = function(event, pdata)
         for _, c in pairs(pdata.config_tmp) do
             assert(type(c.to) == "table")
         end
         pdata.config = util.table.deepcopy(pdata.config_tmp)
+        GUI.close(pdata, event.player_index)
     end,
 
     clear_all = function(_, pdata)
@@ -82,7 +83,7 @@ local gui_functions = {
         textfield.text = ""
     end,
 
-    restore_preset = function(_, pdata, args)
+    restore_preset = function(event, pdata, args)
         local name = args.name
         local gui_elements = pdata.gui_elements
         local frame = gui_elements.config_frame
@@ -114,6 +115,8 @@ local gui_functions = {
             end
         end
         gui_elements.textfield.text = name or ""
+        GUI.close(pdata, event.player_index)
+        GUI.display_message(event.player, {"module-inserter-storage-loaded", name}, "success")
     end,
 
     delete_preset = function(event, pdata, args)
