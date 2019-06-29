@@ -315,9 +315,10 @@ end
 
 function GUI.init(player, pdata, after_research)
     if (player.force.technologies["construction-robotics"].researched or after_research) then
-        local button = pdata.gui_elements.main_button
+        local button_flow = mod_gui.get_button_flow(player)
+        local button = button_flow.module_inserter_config_button
         if (not (button and button.valid)) then
-            button = mod_gui.get_button_flow(player).add{
+            button = button_flow.add{
                 type = "sprite-button",
                 name = "module_inserter_config_button",
                 style = "module-inserter-button",
@@ -327,6 +328,13 @@ function GUI.init(player, pdata, after_research)
         GUI.register_action(pdata, button, {type = "main_button"})
         pdata.gui_elements.main_button = button
     end
+end
+
+function GUI.delete(pdata)
+    for _, element in pairs(pdata.gui_elements) do
+        GUI.deregister_action(element, pdata, true)
+    end
+    pdata.gui_elements = {}
 end
 
 function GUI.add_preset(pdata, storage_table, key)

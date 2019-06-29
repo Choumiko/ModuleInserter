@@ -10,7 +10,7 @@ local profiler = require "profiler"
 local MOD_NAME = "ModuleInserter"
 
 local UPDATE_RATE = 117
-local MAX_PROXIES = 1000
+local MAX_PROXIES = 30
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -62,7 +62,7 @@ local function drop_module(entity, name, count, module_inventory, chest, player,
         if not (chest and chest.valid) then
             error("Invalid chest")
         else
-            if player then
+            if player and player.valid then
                 chest.order_deconstruction(chest.force, player)
             else
                 chest.order_deconstruction(chest.force)
@@ -187,10 +187,17 @@ local function on_tick(event)
         end
         global.proxies[tick] = nil
     end
-    current = global.to_create[tick]
+    if not next(global.proxies) then
+        script.on_event(defines.events.on_tick, nil)
+    end
+end
+
+local function delayed_creation(event)
+    local tick = event.tick
+    local nth_tick = event.nth_tick
+    local current = global.to_create[tick]
     if current then
-        local p = game.create_profiler()
-        local check_tick = event.tick + UPDATE_RATE
+        local check_tick = tick + UPDATE_RATE
         local proxies = global.proxies[check_tick] or {}
         local ent
         for _, data in pairs(current) do
@@ -200,15 +207,15 @@ local function on_tick(event)
         end
         if next(proxies) then
             global.proxies[check_tick] = proxies
+            script.on_event(defines.events.on_tick, on_tick)
         else
             global.proxies[check_tick] = nil
         end
         global.to_create[tick] = nil
-        p.stop()
-        log{"", "delayed ", p}
     end
-    if table_size(global.proxies) == 0 and table_size(global.to_create) == 0 then
-        script.on_event(defines.events.on_tick, nil)
+    --TODO nth_tick for proxy checks
+    if nth_tick ~= UPDATE_RATE then
+        script.on_nth_tick(nth_tick, nil)
     end
 end
 
@@ -225,11 +232,24 @@ local function conditional_events(check)
                 global.proxies[tick] = nil
             end
         end
+        for tick, to_create in pairs(global.to_create) do
+            for id, data in pairs(to_create) do
+                if not (data.entity and data.entity.valid) then
+                    to_create[id] = nil
+                end
+            end
+            if not next(to_create) then
+                global.to_create[tick] = nil
+            end
+        end
     end
-    if table_size(global.proxies) == 0 and global.to_create and table_size(global.to_create) == 0 then
+    if not next(global.proxies) then
         script.on_event(defines.events.on_tick, nil)
     else
         script.on_event(defines.events.on_tick, on_tick)
+    end
+    for tick in pairs(global.to_create) do
+        script.on_nth_tick(tick, delayed_creation)
     end
 end
 
@@ -241,17 +261,14 @@ local function on_player_selected_area(event)
         if event.item ~= "module-inserter" or not player_index then return end
         local player = game.get_player(player_index)
         local pdata = global._pdata[player_index]
-
         local config = pdata.config
-        --player.print("Entities: " .. #event.entities)
         local check_tick = event.tick + UPDATE_RATE
         local proxies = global.proxies[check_tick] or {}
         local ent_type, ent_name
         local entity_configs = {}
         local surface = player.surface
-        local create_entity = surface.create_entity
         local restricted_modules = global.restricted_modules
-        local delay = 0
+        local delay
         for i, entity in pairs(event.entities) do
             ent_name = entity.name
             --remove existing proxies if we have a config for it's target
@@ -273,11 +290,10 @@ local function on_player_selected_area(event)
             if not global.nameToSlots[ent_name] then
                 goto continue
             end
-            --TODO check at what point it costs more than it saves
             if entity_configs[ent_name] == nil then
                 entity_configs[ent_name] = config_exists(config, ent_name)
             end
-            local entity_config = entity_configs[ent_name]--config_exists(config, ent_name)
+            local entity_config = entity_configs[ent_name]
             if not entity_config then
                 goto continue
             end
@@ -305,22 +321,16 @@ local function on_player_selected_area(event)
                     goto continue
                 end
             end
-            if i % MAX_PROXIES == 0 then
-                delay = delay + 1
-            end
-            if delay == 0 then
-                proxies = create_request_proxy(entity, ent_name, entity_config.to, cTable, proxies, player, create_entity)
-            else
-                if not global.to_create[event.tick+delay] then global.to_create[event.tick+delay] = {} end
-                global.to_create[event.tick+delay][entity.unit_number] = {
-                    entity = entity,
-                    name = ent_name,
-                    modules = entity_config.to,
-                    cTable = cTable,
-                    player = player,
-                    surface = surface
-                }
-            end
+            delay = (i % MAX_PROXIES) + event.tick
+            if not global.to_create[delay] then global.to_create[delay] = {} end
+            global.to_create[delay][entity.unit_number] = {
+                entity = entity,
+                name = ent_name,
+                modules = entity_config.to,
+                cTable = cTable,
+                player = player,
+                surface = surface
+            }
             ::continue::
         end
         if next(proxies) then
@@ -493,7 +503,7 @@ local function on_configuration_changed(data)
                 --saveVar(global, "preUpdate")
                 if global.config then
                     for name, p in pairs(global.config) do
-                        for i=#p,1,-1 do
+                        for i = #p, 1, -1 do
                             if p[i].from == "" then
                                 global.config[name][i].from = nil
                                 global.config[name][i].to = {}
@@ -506,7 +516,7 @@ local function on_configuration_changed(data)
                 end
                 if global["config-tmp"] then
                     for name, p in pairs(global["config-tmp"]) do
-                        for i=#p,1,-1 do
+                        for i = #p, 1, -1 do
                             if p[i].from == "" then
                                 global["config-tmp"][name][i].from = nil
                                 global["config-tmp"][name][i].to = {}
@@ -520,7 +530,7 @@ local function on_configuration_changed(data)
                 if global.storage then
                     for player, store in pairs(global.storage) do
                         for name, p in pairs(store) do
-                            for i=#p,1,-1 do
+                            for i= #p, 1, -1 do
                                 if p[i].from == "" then
                                     global.storage[player][name][i].from = nil
                                     global.storage[player][name][i].to = {}
@@ -586,7 +596,7 @@ local function on_configuration_changed(data)
                     global.config[pi].loaded = nil
                     pdata.gui_elements = global.gui_elements and global.gui_elements[pi] or {}
                     pdata.config = global.config and global.config[pi] or {}
-                    pdata.config_tmp = global["config-tmp"] and global["config-tmp"][pi]
+                    pdata.config_tmp = global["config-tmp"] and global["config-tmp"][pi] or {}
                     pdata.storage = global.storage and global.storage[pi] or {}
                     pdata.settings = global.settings and global.settings[pi] or {}
                 end
@@ -594,6 +604,7 @@ local function on_configuration_changed(data)
                 global.config = nil
                 global.storage = nil
                 global.settings = nil
+                global["config-tmp"] = nil
             end
             if oldVersion < v'4.1.2' then
                 global.to_create = global.to_create or {}
@@ -621,6 +632,10 @@ local function on_configuration_changed(data)
                         create_cTable(preset)
                     end
                 end
+                for pi, player in pairs(game.players) do
+                    GUI.close(global._pdata[pi], pi)
+                    GUI.init(player, global._pdata[pi])
+                end
             end
             global.version = tostring(newVersion) --do i really need that?
         end
@@ -635,10 +650,16 @@ local function on_player_created(event)
     init_player(game.players[event.player_index])
 end
 
+local function on_pre_player_removed(event)
+    GUI.delete(global._pdata[event.player_index])
+    global._pdata[event.player_index] = nil
+end
+
 script.on_init(on_init)
 script.on_load(on_load)
 script.on_configuration_changed(on_configuration_changed)
 script.on_event(defines.events.on_player_created, on_player_created)
+script.on_event(defines.events.on_pre_player_removed, on_pre_player_removed)
 
 script.on_event(defines.events.on_gui_click, GUI.generic_event)
 script.on_event(defines.events.on_gui_elem_changed, GUI.generic_event)
@@ -742,9 +763,18 @@ remote.add_interface("mi",
                     profiler.Stop()
                     profiler.p.divide(10)
                     log{"", profiler.p}
+                    profiler.p.divide(m*n)
+                    log(profiler.p)
                 end
                 profiler.Stop()
             end
             profiler = profiler_raw
-        end
+        end,
+
+        profile_once = function()
+            local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
+            profiler.Start(true)
+            local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick}
+            on_player_selected_area(event)
+        end,
     })
