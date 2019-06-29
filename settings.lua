@@ -2,11 +2,10 @@ local prefix = "module_inserter_"
 data:extend({
     {
         type = "int-setting",
-        name = prefix .. "config_size",
-        setting_type = "runtime-per-user",
-        default_value = 11,
+        name = prefix .. "proxies_per_tick",
+        setting_type = "runtime-global",
+        default_value = 30,
         minimum_value = 1,
-        maximum_value = 200, --don't trust factorians..
         order = "a"
     },
     {

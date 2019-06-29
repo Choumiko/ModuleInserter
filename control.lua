@@ -6,11 +6,10 @@ local debugDump = lib.debugDump
 local saveVar = lib.saveVar
 local config_exists = lib.config_exists
 local GUI = require "__ModuleInserter__/gui"
-local profiler = require "profiler"
+--local profiler = require "profiler"
 local MOD_NAME = "ModuleInserter"
 
 local UPDATE_RATE = 117
-local MAX_PROXIES = 30
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -254,13 +253,13 @@ local function on_player_selected_area(event)
         local player = game.get_player(player_index)
         local pdata = global._pdata[player_index]
         local config = pdata.config
-        local check_tick = event.tick + UPDATE_RATE
-        local proxies = global.proxies[check_tick] or {}
         local ent_type, ent_name
         local entity_configs = {}
         local surface = player.surface
         local restricted_modules = global.restricted_modules
-        local delay
+        local delay = event.tick
+        local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
+        local message = false
         for i, entity in pairs(event.entities) do
             ent_name = entity.name
             --remove existing proxies if we have a config for it's target
@@ -273,7 +272,7 @@ local function on_player_selected_area(event)
                             if not next(proxy) then
                                 global.proxies[tick] = nil
                             end
-                            entity.destroy{raise_destroy = true}
+                            entity.destroy{}
                             goto continue
                         end
                     end
@@ -297,23 +296,24 @@ local function on_player_selected_area(event)
             end
             local cTable = entity_config.cTable
             if entity_config.limitations and recipe then
-                local message = false
+                local message2 = false
                 recipe = recipe.name
                 for module, _ in pairs(cTable) do
-                    --if not module_usable(module, recipe) then
                     if restricted_modules[module] and not restricted_modules[module][recipe] then
-                        if not message then
-                            message = "item-limitation.production-module-usable-only-on-intermediates"
+                        if not message2 then
+                            message2 = "item-limitation.production-module-usable-only-on-intermediates"
+                            message = message2
                         end
                         break
                     end
                 end
-                if message then
-                    player.print({message})
+                if message2 then
                     goto continue
                 end
             end
-            delay = (i % MAX_PROXIES) + event.tick
+            if (i % max_proxies == 0) then
+                delay = delay + 1
+            end
             if not global.to_create[delay] then global.to_create[delay] = {} end
             global.to_create[delay][entity.unit_number] = {
                 entity = entity,
@@ -325,19 +325,15 @@ local function on_player_selected_area(event)
             }
             ::continue::
         end
-        if next(proxies) then
-            global.proxies[check_tick] = proxies
-        else
-            global.proxies[check_tick] = nil
+        if message then
+            player.print({message})
         end
         conditional_events()
     end)
     if not status then
         debugDump(err, true)
         conditional_events(true)
-        --profiler.Stop(true)
     end
-    --profiler.Stop(true)
 end
 
 local function on_player_alt_selected_area(event)
@@ -713,52 +709,52 @@ remote.add_interface("mi",
             init_players()
         end,
 
-        profile = function(m, n, fast)
-            local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
-            log(#ents)
-            local profiler_raw = profiler
-            if fast then
-                profiler = {
-                    p = false,
-                    Start = function() profiler.p = game.create_profiler() end,
-                    Stop = function() profiler.p.stop() end
-                }
-            end
-            m = m or 10
-            n = n or 10
-            for j = 1, m do
-                profiler.Start()
-                for i = 1, n do
-                    local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick+i}
-                    on_player_selected_area(event)
-                    if fast then profiler.Stop() end
-                    for _, current in pairs(global.proxies) do
-                        for k, data in pairs(current) do
-                            if data.proxy and data.proxy.valid then
-                                data.proxy.destroy()
-                            end
-                        end
-                    end
-                    global.proxies = {}
-                    global.to_create = {}
-                    if fast then profiler.p.restart() end
-                end
-                if fast then
-                    profiler.Stop()
-                    profiler.p.divide(10)
-                    log{"", profiler.p}
-                    profiler.p.divide(m*n)
-                    log(profiler.p)
-                end
-                profiler.Stop()
-            end
-            profiler = profiler_raw
-        end,
+        -- profile = function(m, n, fast)
+        --     local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
+        --     log(#ents)
+        --     local profiler_raw = profiler
+        --     if fast then
+        --         profiler = {
+        --             p = false,
+        --             Start = function() profiler.p = game.create_profiler() end,
+        --             Stop = function() profiler.p.stop() end
+        --         }
+        --     end
+        --     m = m or 10
+        --     n = n or 10
+        --     for j = 1, m do
+        --         profiler.Start()
+        --         for i = 1, n do
+        --             local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick+i}
+        --             on_player_selected_area(event)
+        --             if fast then profiler.Stop() end
+        --             for _, current in pairs(global.proxies) do
+        --                 for k, data in pairs(current) do
+        --                     if data.proxy and data.proxy.valid then
+        --                         data.proxy.destroy()
+        --                     end
+        --                 end
+        --             end
+        --             global.proxies = {}
+        --             global.to_create = {}
+        --             if fast then profiler.p.restart() end
+        --         end
+        --         if fast then
+        --             profiler.Stop()
+        --             profiler.p.divide(10)
+        --             log{"", profiler.p}
+        --             profiler.p.divide(m*n)
+        --             log(profiler.p)
+        --         end
+        --         profiler.Stop()
+        --     end
+        --     profiler = profiler_raw
+        -- end,
 
-        profile_once = function()
-            local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
-            profiler.Start(true)
-            local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick}
-            on_player_selected_area(event)
-        end,
+        -- profile_once = function()
+        --     local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
+        --     --profiler.Start(true)
+        --     local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick}
+        --     on_player_selected_area(event)
+        -- end,
     })
