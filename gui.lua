@@ -15,7 +15,9 @@ local GUI = {}
 local START_SIZE = 10
 local gui_functions = {
     main_button = function(event, pdata, _)
-        if pdata.gui_elements.config_frame then
+        local gui_elements = pdata.gui_elements
+        if (gui_elements.config_frame and gui_elements.config_frame.valid) or
+            gui_elements.preset_frame and gui_elements.preset_frame.valid then
             GUI.close(pdata, event.player_index)
         else
             GUI.open_config_frame(event.player, pdata)
@@ -129,6 +131,7 @@ local gui_functions = {
     set_assembler = function(event, pdata, args)
         if event.name ~= defines.events.on_gui_elem_changed then return end
         local ruleset_grid = pdata.gui_elements.ruleset_grid
+        if not (ruleset_grid and ruleset_grid.valid) then return end
         local index = args.index
         local element = event.element
         local elem_value = element.elem_value
@@ -261,6 +264,39 @@ function GUI.get_event_name(i)
     end
 end
 
+function GUI.remove_invalid_actions(pdata)
+    local before = table_size(pdata.gui_actions)
+    local index_valid = {}
+    local function _recurse(element, key)
+        index_valid[element.index] = {name = element.name, type = element.type, key = key}
+        for _, child in pairs(element.children) do
+            if child and child.valid then
+                _recurse(child)
+            end
+        end
+    end
+    for key, element in pairs(pdata.gui_elements) do
+        if element and element.valid then
+            _recurse(element, key)
+        else
+            pdata.gui_elements[key] = nil
+            log("Invalid element: " .. key)
+        end
+    end
+    log("Valid gui elements: " .. table_size(index_valid))
+    for index, _ in pairs(pdata.gui_actions) do
+        if not index_valid[index] then
+            pdata.gui_actions[index] = nil
+        end
+    end
+    local after = table_size(pdata.gui_actions)
+    for index, action in pairs(pdata.gui_elements) do
+        log(index .. ": " .. serpent.line(action))
+    end
+    log("Removed " .. tostring(before - after) .. " invalid gui actions.")
+    log("Remaining valid actions: " .. tostring(after))
+end
+
 function GUI.generic_event(event)
     local gui = event.element
     if not (gui and gui.valid) then return end
@@ -272,20 +308,17 @@ function GUI.generic_event(event)
     local action = player_gui_actions[gui.index]
     if not action then return end
 
-    --TODO: is that smart?
-    for key, element in pairs(pdata.gui_elements) do
-        if element and not element.valid then
-            error("Invalid element " .. key)
-        end
-    end
-
     local player = game.get_player(player_index)
-    local profile_inner = game.create_profiler()
     local status, err = xpcall(function()
-        profile_inner.reset()
+        --TODO: is that smart?
+        for key, element in pairs(pdata.gui_elements) do
+            if element and not element.valid then
+                player.print("[ModuleInserter] Invalid element: " .. key)
+                --pdata.gui_elements[key] = nil
+            end
+        end
         event.player = player
         gui_functions[action.type](event, pdata, action)
-        profile_inner.stop()
     end, debug.traceback)
     -- log{"", "Inner: ", profile_inner}
     --log("Selected: " .. tostring(pdata.selected))
@@ -294,14 +327,12 @@ function GUI.generic_event(event)
         log("Error running event: " .. tostring(GUI.get_event_name(event.name)))
         log("Event: " .. serpent.line(event))
         log("Action: " ..serpent.line(action and action.type))
-        for _, c in pairs(pdata.config_tmp) do
-            log(serpent.line(c))
-        end
+        -- for _, c in pairs(pdata.config_tmp) do
+        --     log(serpent.line(c))
+        -- end
         --log(serpent.block(pdata.config_tmp, {name = "config_tmp", comment = false}))
         debugDump(err, true)
-        local trace = debug.traceback(nil, 2)
-        debugDump(trace, true)
-        log(trace)
+        log(err)
         local s
         for name, elem in pairs(pdata.gui_elements) do
             s = name .. ": "
@@ -336,6 +367,7 @@ function GUI.delete(pdata)
         GUI.deregister_action(element, pdata, true)
     end
     pdata.gui_elements = {}
+    pdata.gui_actions = {}
 end
 
 function GUI.add_preset(pdata, storage_table, key)
@@ -393,26 +425,19 @@ function GUI.add_config_row(pdata, index, scroll_pane)
 end
 
 function GUI.close(pdata, player_index)
-    local frame = pdata.gui_elements.config_frame
-    local was_opened = false
-    if (frame and frame.valid) then
-        GUI.deregister_action(frame, pdata, true)
-        pdata.gui_elements.config_frame = nil
-        pdata.gui_elements.ruleset_grid = nil
-        was_opened = true
-    end
-    local storage_frame = pdata.gui_elements.preset_frame
-    if (storage_frame and storage_frame.valid) then
-        GUI.deregister_action(storage_frame, pdata, true)
-        pdata.gui_elements.preset_frame = nil
-        pdata.gui_elements.storage_grid = nil
-        pdata.gui_elements.textfield = nil
-        was_opened = true
-    end
+    local gui_elements = pdata.gui_elements
+    GUI.deregister_action(gui_elements.config_frame, pdata, true)
+    gui_elements.config_frame = nil
+    gui_elements.ruleset_grid = nil
+
+    GUI.deregister_action(gui_elements.preset_frame, pdata, true)
+    gui_elements.preset_frame = nil
+    gui_elements.storage_grid = nil
+    gui_elements.textfield = nil
+
     if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and pdata.settings.YARM_old_expando then
         remote.call("YARM", "show_expando", player_index)
     end
-    return was_opened
 end
 
 function GUI.open_config_frame(player, pdata)

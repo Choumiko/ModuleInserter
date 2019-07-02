@@ -618,6 +618,11 @@ local function on_configuration_changed(data)
                     GUI.init(player, global._pdata[pi])
                 end
             end
+            if oldVersion < v'4.1.3' then
+                for _, pdata in pairs(global._pdata) do
+                    GUI.remove_invalid_actions(pdata)
+                end
+            end
             global.version = tostring(newVersion) --do i really need that?
         end
     end
@@ -708,6 +713,17 @@ remote.add_interface("mi",
             init_global()
             init_players()
         end,
+
+        validate_gui = function()
+            -- local player_index = game.player.index
+            -- local pdata = global._pdata[player_index]
+            -- if destroy and pdata.gui_elements.config_frame and pdata.gui_elements.config_frame.valid then
+            --     pdata.gui_elements.ruleset_grid.destroy()
+            -- end
+            for _, data in pairs(global._pdata) do
+                GUI.remove_invalid_actions(data)
+            end
+        end
 
         -- profile = function(m, n, fast)
         --     local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
