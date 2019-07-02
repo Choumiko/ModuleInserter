@@ -11,6 +11,18 @@ local function get_entity_from_item_name(name)
     return _entity_prototypes[name]
 end
 
+local function show_yarm(pdata, player_index)
+    if remote.interfaces.YARM and remote.interfaces.YARM.set_filter then
+        remote.call("YARM", "set_filter", player_index, pdata.settings.YARM_active_filter)
+    end
+end
+
+local function hide_yarm(pdata, player_index)
+    if remote.interfaces.YARM and remote.interfaces.YARM.set_filter then
+        pdata.settings.YARM_active_filter = remote.call("YARM", "set_filter", player_index, "none")
+    end
+end
+
 local GUI = {}
 local START_SIZE = 10
 local gui_functions = {
@@ -20,7 +32,7 @@ local gui_functions = {
             gui_elements.preset_frame and gui_elements.preset_frame.valid then
             GUI.close(pdata, event.player_index)
         else
-            GUI.open_config_frame(event.player, pdata)
+            GUI.open_config_frame(pdata, event.player)
         end
     end,
 
@@ -435,17 +447,12 @@ function GUI.close(pdata, player_index)
     gui_elements.storage_grid = nil
     gui_elements.textfield = nil
 
-    if remote.interfaces.YARM and remote.interfaces.YARM.show_expando and pdata.settings.YARM_old_expando then
-        remote.call("YARM", "show_expando", player_index)
-    end
+    show_yarm(pdata, player_index)
 end
 
-function GUI.open_config_frame(player, pdata)
-    local player_index = player.index
+function GUI.open_config_frame(pdata, player)
 
-    if remote.interfaces.YARM and remote.interfaces.YARM.hide_expando then
-        pdata.settings.YARM_old_expando = remote.call("YARM", "hide_expando", player_index)
-    end
+    hide_yarm(pdata, player.index)
 
     pdata.config_tmp = util.table.deepcopy(pdata.config)
     local config_tmp = pdata.config_tmp
