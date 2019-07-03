@@ -375,6 +375,7 @@ function GUI.init(player, pdata, after_research)
 end
 
 function GUI.delete(pdata)
+    if not (pdata and pdata.gui_elements) then return end
     for _, element in pairs(pdata.gui_elements) do
         GUI.deregister_action(element, pdata, true)
     end

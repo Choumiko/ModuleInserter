@@ -429,8 +429,9 @@ local function init_global()
 end
 
 local function init_player(player)
+    init_global()
     local i = player.index
-    local pdata = global._pdata[player.index] or {}
+    local pdata = global._pdata[i] or {}
     global._pdata[i] = {
         config = pdata.config or {},
         storage = pdata.storage or {},
@@ -574,7 +575,9 @@ local function on_configuration_changed(data)
                 for pi, p in pairs(game.players) do
                     init_player(p)
                     pdata = global._pdata[pi]
-                    global.config[pi].loaded = nil
+                    if global.config and global.config[pi] then
+                        global.config[pi].loaded = nil
+                    end
                     pdata.gui_elements = global.gui_elements and global.gui_elements[pi] or {}
                     pdata.config = global.config and global.config[pi] or {}
                     pdata.config_tmp = global["config-tmp"] and global["config-tmp"][pi] or {}
@@ -637,8 +640,10 @@ local function on_player_created(event)
 end
 
 local function on_pre_player_removed(event)
-    GUI.delete(global._pdata[event.player_index])
-    global._pdata[event.player_index] = nil
+    if global._pdata[event.player_index] then
+        GUI.delete(global._pdata[event.player_index])
+        global._pdata[event.player_index] = nil
+    end
 end
 
 script.on_init(on_init)
