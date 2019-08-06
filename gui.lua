@@ -2,13 +2,9 @@ local mod_gui = require '__core__/lualib/mod-gui'
 local lib = require "__ModuleInserter__/lib_control"
 local debugDump = lib.debugDump
 
-local _entity_prototypes = {}
 local function get_entity_from_item_name(name)
-    if _entity_prototypes[name] == nil then
-        local item = game.item_prototypes[name]
-        _entity_prototypes[name] = item and item.place_result or false
-    end
-    return _entity_prototypes[name]
+    local item = game.item_prototypes[name]
+    return item and item.place_result or false
 end
 
 local function show_yarm(pdata, player_index)
@@ -178,7 +174,7 @@ local gui_functions = {
         config.from = name
         config.to = {}
         config.cTable = {}
-        element.elem_value = name
+        element.elem_value = elem_value
         element.tooltip = proto.localised_name
         GUI.update_modules(pdata, index)
 
@@ -415,7 +411,7 @@ function GUI.add_config_row(pdata, index, scroll_pane)
         type = "flow",
         direction = "horizontal",
     }
-    local assembler_proto = assembler and game.item_prototypes[assembler]
+    local assembler_proto = assembler and game.entity_prototypes[assembler]
     local tooltip = assembler_proto and assembler_proto.localised_name or {"module-inserter-choose-assembler"}
     local choose_button = entity_flow.add{
         type = "choose-elem-button",
@@ -424,7 +420,7 @@ function GUI.add_config_row(pdata, index, scroll_pane)
         elem_type = "item",
         tooltip = tooltip
     }
-    choose_button.elem_value = assembler or nil
+    choose_button.elem_value = assembler_proto and assembler_proto.items_to_place_this and assembler_proto.items_to_place_this[1].name or nil
     choose_button.style.right_margin = 8
 
     GUI.register_action(pdata, choose_button, {type = "set_assembler", index = index})
