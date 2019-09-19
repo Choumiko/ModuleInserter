@@ -353,8 +353,16 @@ function GUI.generic_event(event)
     end
 end
 
-function GUI.init(player, pdata, after_research)
-    if (player.force.technologies["construction-robotics"].researched or after_research) then
+function GUI.init(player, pdata, after_research, unlock_researches)
+    if unlock_researches then
+        for name, _ in pairs(unlock_researches) do
+            if player.force.technologies[name] and player.force.technologies[name].researched then
+                after_research = true
+                break
+            end
+        end
+    end
+    if (after_research or player.force.technologies["construction-robotics"].researched) then
         local button_flow = mod_gui.get_button_flow(player)
         local button = button_flow.module_inserter_config_button
         if (not (button and button.valid)) then

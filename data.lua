@@ -12,10 +12,18 @@ data:extend({
     }
 })
 
-table.insert(
-    data.raw["technology"]["construction-robotics"]["effects"],
-    { type = "unlock-recipe", recipe = "module-inserter" }
-)
-
--- data.raw.module["speed-module"].limitation = {"iron-gear-wheel"}
--- data.raw.module["speed-module"]["limitation_message_key"] = "production-module-usable-only-on-intermediates"
+if not mods["IndustrialRevolution"] then
+    table.insert(
+        data.raw.technology["construction-robotics"].effects,
+        { type = "unlock-recipe", recipe = "module-inserter" }
+    )
+else
+    table.insert(
+        data.raw.technology["deadlock-bronze-construction"].effects,
+        { type = "unlock-recipe", recipe = "module-inserter" }
+    )
+    table.insert(
+        data.raw.technology["personal-roboport-equipment"].effects,
+        { type = "unlock-recipe", recipe = "module-inserter" }
+    )
+end

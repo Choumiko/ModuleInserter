@@ -11,6 +11,12 @@ local MOD_NAME = "ModuleInserter"
 
 local UPDATE_RATE = 117
 
+local unlock_researches = {
+    ["construction-robotics"] = true,
+    ["deadlock-bronze-construction"] = true,
+    ["personal-roboport-equipment"] = true
+}
+
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
     for k, value in pairs(tbl1) do
@@ -442,7 +448,7 @@ local function init_player(player)
 
     }
 
-    GUI.init(player, global._pdata[i])
+    GUI.init(player, global._pdata[i], false, unlock_researches)
 end
 
 local function init_players()
@@ -618,7 +624,7 @@ local function on_configuration_changed(data)
                 end
                 for pi, player in pairs(game.players) do
                     GUI.close(global._pdata[pi], pi)
-                    GUI.init(player, global._pdata[pi])
+                    GUI.init(player, global._pdata[pi], false, unlock_researches)
                 end
             end
             if oldVersion < v'4.1.3' then
@@ -626,6 +632,11 @@ local function on_configuration_changed(data)
                     GUI.remove_invalid_actions(pdata)
                 end
             end
+
+            if oldVersion < v'4.1.7' then
+                init_players()
+            end
+
             global.version = tostring(newVersion) --do i really need that?
         end
     end
@@ -700,7 +711,7 @@ script.on_event({
 )
 
 local function on_research_finished(event)
-    if event.research.name == 'construction-robotics' then
+    if unlock_researches[event.research.name] then
         for pi, player in pairs(event.research.force.players) do
             GUI.init(player, global._pdata[pi], true)
         end
