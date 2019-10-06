@@ -1,10 +1,4 @@
 for _, player in pairs(game.players) do
-    player.force.reset_recipes()
-    player.force.reset_technologies()
-
-    if player.force.technologies["construction-robotics"].researched then
-        player.force.recipes["module-inserter"].enabled = true
-    end
     if player.gui.top["module-inserter-config-button"] and player.gui.top["module-inserter-config-button"].valid then
         player.gui.top["module-inserter-config-button"].destroy()
     end
