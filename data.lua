@@ -6,6 +6,8 @@ data:extend({
         type = 'custom-input',
         name = 'get-module-inserter',
         key_sequence = "",
+        action = 'create-blueprint-item',
+        item_to_create = 'module-inserter',
         consuming = 'none'
     },
     {
