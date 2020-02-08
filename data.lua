@@ -44,6 +44,7 @@ data:extend({
         name = "module-inserter",
         icon = "__ModuleInserter__/graphics/module-inserter-icon.png",
         icon_size = 32,
+        icon_mipmaps = 0,
         flags = {"hidden", "only-in-cursor"},
         stack_size = 1,
         selection_color = { r = 0, g = 1, b = 0 },

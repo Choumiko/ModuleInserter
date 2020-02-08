@@ -19,6 +19,7 @@ mi_proxy.selection_box = {{-0.5, -0.5}, {0.5, 0.5}}
 mi_proxy.minable = {mining_time = 0.1}
 mi_proxy.icon = "__ModuleInserter__/graphics/module-inserter-icon.png"
 mi_proxy.icon_size = 32
+mi_proxy.icon_mipmaps = 0
 mi_proxy.flags = {
     "placeable-neutral",
     "player-creation",
