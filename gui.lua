@@ -403,7 +403,7 @@ function GUI.add_preset(pdata, storage_table, key)
         preset_flow.add{
             type = "sprite-button",
             style = "mi_delete_preset",
-            sprite = "utility/remove"
+            sprite = "utility/trash"
         },
         {type = "delete_preset", name = key}
     )

@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 5.0.2
+Date: 05. 03. 2020
+  Changes:
+    - Added command: /module-inserter to get the selection tool (use with an empty cursor)
+  Bugfixes:
+    - Fixed unknown sprite error
+---------------------------------------------------------------------------------------------------
 Version: 5.0.1
 Date: 08. 02. 2020
   Bugfixes:

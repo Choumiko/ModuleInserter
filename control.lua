@@ -719,6 +719,14 @@ local function on_research_finished(event)
 end
 script.on_event(defines.events.on_research_finished, on_research_finished)
 
+commands.add_command("module-inserter", "", function()
+    if game.player.cursor_stack and not game.player.cursor_stack.valid_for_read then
+        game.player.cursor_stack.set_stack{name = "module-inserter", count = 1}
+    else
+        game.player.print("Use this command with an empty cursor")
+    end
+end)
+
 remote.add_interface("mi",
     {
         saveVar = function(name)
