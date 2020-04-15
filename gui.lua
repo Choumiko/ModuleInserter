@@ -208,6 +208,8 @@ local gui_functions = {
                 if itemEffects.productivity ~= 0 and not entity_proto.allowed_effects['productivity'] then
                     GUI.display_message(event.player, {"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name}, true)
                     modules[slot] = nil
+                else
+                    modules[slot] = proto.name
                 end
             else
                 modules[slot] = proto.name
