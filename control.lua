@@ -747,6 +747,22 @@ remote.add_interface("mi",
             for _, data in pairs(global._pdata) do
                 GUI.remove_invalid_actions(data)
             end
+        end,
+
+        get_module_config = function(player_index)
+            local pdata = global._pdata[player_index]
+            if not pdata or not pdata.config then
+                return false
+            end
+
+            local config = pdata.config
+            local tmp = {}
+            for _, ent_config in pairs(config) do
+                if ent_config.from then
+                    tmp[ent_config.from] = ent_config.cTable
+                end
+            end
+            return tmp
         end
 
         -- profile = function(m, n, fast)

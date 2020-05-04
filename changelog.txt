@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 5.0.4
+Date: 15. 04. 2020
+  Changes:
+    - added remote interface "get_module_config" to get the players module configuration (remote.call("mi", "get_module_config", player_index))
+---------------------------------------------------------------------------------------------------
 Version: 5.0.3
 Date: 15. 04. 2020
   Bugfixes:
