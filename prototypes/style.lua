@@ -13,7 +13,7 @@ styles["module-inserter-button"] =
 
 styles["mi_delete_preset"] = {
     type = "button_style",
-    parent = "red_icon_button",
+    parent = "tool_button_red",
     padding = 0
 }
 
