@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 5.0.6
+Date: 29. 05. 2020
+  Changes:
+    - Added filtering to the config gui, so that only entities with modules slots and modules are shown
+---------------------------------------------------------------------------------------------------
 Version: 5.0.5
 Date: 26. 05. 2020
   Bugfixes:

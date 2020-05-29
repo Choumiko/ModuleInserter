@@ -2,11 +2,6 @@ local mod_gui = require '__core__/lualib/mod-gui'
 local lib = require "__ModuleInserter__/lib_control"
 local debugDump = lib.debugDump
 
-local function get_entity_from_item_name(name)
-    local item = game.item_prototypes[name]
-    return item and item.place_result or false
-end
-
 local function show_yarm(pdata, player_index)
     if remote.interfaces.YARM and remote.interfaces.YARM.set_filter then
         remote.call("YARM", "set_filter", player_index, pdata.settings.YARM_active_filter)
@@ -151,18 +146,8 @@ local gui_functions = {
             return
         end
 
-        local proto = get_entity_from_item_name(elem_value)
-        if not proto then
-            element.elem_value = config.from
-            event.player.print("No entity/invalid entity found for item: " .. elem_value)
-            return
-        end
+        local proto = game.entity_prototypes[elem_value]
         local name = proto.name
-        if not global.nameToSlots[name] then
-            element.elem_value = config.from
-            GUI.display_message(event.player, {"module-inserter-item-no-slots"}, true)
-            return
-        end
 
         for i = 1, #config_tmp do
             if index ~= i and config_tmp[i].from == name then
@@ -202,7 +187,7 @@ local gui_functions = {
         local modules = config.to
 
         if proto and config.from and proto.type == "module" then
-            local entity_proto = get_entity_from_item_name(config.from)
+            local entity_proto = game.entity_prototypes[config.from]
             local itemEffects = proto.module_effects
             if entity_proto and entity_proto.type == "beacon" and itemEffects and itemEffects.productivity then
                 if itemEffects.productivity ~= 0 and not entity_proto.allowed_effects['productivity'] then
@@ -427,10 +412,11 @@ function GUI.add_config_row(pdata, index, scroll_pane)
         type = "choose-elem-button",
         name = "assembler",
         style = "slot_button",
-        elem_type = "item",
+        elem_type = "entity",
+        elem_filters = {{filter = "name", name = global.module_entities}},
         tooltip = tooltip
     }
-    choose_button.elem_value = assembler_proto and assembler_proto.items_to_place_this and assembler_proto.items_to_place_this[1].name or nil
+    choose_button.elem_value = assembler or nil
     choose_button.style.right_margin = 8
 
     GUI.register_action(pdata, choose_button, {type = "set_assembler", index = index})
@@ -627,6 +613,7 @@ function GUI.update_modules(pdata, index)
                 type = "choose-elem-button",
                 style = "slot_button",
                 elem_type = "item",
+                elem_filters = {{filter = "type", type = "module"}}
             }
             choose_button.elem_value = modules[i] or nil
             choose_button.tooltip = modules[i] and _item_prototypes[modules[i]].localised_name or tooltip

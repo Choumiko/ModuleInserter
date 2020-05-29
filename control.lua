@@ -374,9 +374,13 @@ script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_select
 --TODO get # of slots only when necessary
 local function create_lookup_tables()
     global.nameToSlots = {}
+    global.module_entities = {}
+    local i = 1
     for name, prototype in pairs(game.entity_prototypes) do
         if prototype.module_inventory_size and prototype.module_inventory_size > 0 then
             global.nameToSlots[name] = prototype.module_inventory_size
+            global.module_entities[i] = name
+            i = i + 1
         end
     end
     global.restricted_modules = {}
@@ -396,9 +400,10 @@ end
 
 local function remove_invalid_items()
     local items = game.item_prototypes
+    local entities = game.entity_prototypes
     local function _remove(tbl)
         for _, config in pairs(tbl) do
-            if config.from and not items[config.from] then
+            if config.from and not entities[config.from] then
                 config.from = nil
                 config.to = {}
                 config.cTable = {}
