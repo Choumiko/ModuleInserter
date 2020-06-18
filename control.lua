@@ -202,7 +202,9 @@ local function delayed_creation(event)
         for _, data in pairs(current) do
             ent = data.entity
             ent = ent and ent.valid and ent
-            proxies = create_request_proxy(ent, data.name, data.modules, data.cTable, proxies, data.player, data.surface.create_entity)
+            if ent and ent.valid then
+                proxies = create_request_proxy(ent, data.name, data.modules, data.cTable, proxies, data.player, data.surface.create_entity)
+            end
         end
         if next(proxies) then
             global.proxies[check_tick] = proxies
