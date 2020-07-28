@@ -53,23 +53,16 @@ local function sort_modules(entity, modules, cTable)
     end
 end
 
-local function drop_module(entity, name, count, module_inventory, chest, player, create_entity)
+local function drop_module(entity, name, count, module_inventory, chest, create_entity)
     if not (chest and chest.valid) then
         chest = create_entity{
             name = "module_inserter_pickup",
-            --name = "wooden-chest",
             position = entity.position,
             force = entity.force,
             create_build_effect_smoke = false
         }
         if not (chest and chest.valid) then
             error("Invalid chest")
-        else
-            if player and player.valid then
-                chest.order_deconstruction(chest.force, player)
-            else
-                chest.order_deconstruction(chest.force)
-            end
         end
     end
 
@@ -92,13 +85,21 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
 
     if not same then
         local missing = {}
-        local surplus = {}
+        --local surplus = {}
         local changed
-        local diff, chest
+        local diff
+        local chest = false
         --Drop all modules and done
         if not next(desired) then
             for name, count in pairs(contents) do
-                chest = drop_module(entity, name, count, module_inventory, chest, player, create_entity)
+                chest = drop_module(entity, name, count, module_inventory, chest, create_entity)
+            end
+            if chest and chest.valid then
+                if player and player.valid then
+                    chest.order_deconstruction(chest.force, player)
+                else
+                    chest.order_deconstruction(chest.force)
+                end
             end
             return proxies
         end
@@ -122,19 +123,26 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
             if diff < 0 then
                 missing[name] = -1 * diff
             elseif diff > 0 then
-                chest = drop_module(entity, name, diff, module_inventory, chest, player, create_entity)
-                surplus[name] = diff
+                chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
+                --surplus[name] = diff
             end
         end
         for name, count in pairs(contents) do
             diff = count - (desired[name] or 0) -- >0: drop, < 0 missing
-            assert(not missing[name] and not surplus[name])
+            --assert(not missing[name] and not surplus[name])
             if diff < 0 then
                 missing[name] = -1 * diff
             elseif diff > 0 then
-                chest = drop_module(entity, name, diff, module_inventory, chest, player, create_entity)
-                surplus[name] = diff
+                chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
+                --surplus[name] = diff
                 changed = true
+            end
+        end
+        if chest and chest.valid then
+            if player and player.valid then
+                chest.order_deconstruction(chest.force, player)
+            else
+                chest.order_deconstruction(chest.force)
             end
         end
         if changed then
@@ -274,8 +282,8 @@ local function on_player_selected_area(event)
             if ent_name == "item-request-proxy" then
                 local target = entity.proxy_target
                 if target and target.valid and config_exists(config, target.name) then
-                    entity.destroy{}
                     target = target.unit_number
+                    entity.destroy{}
                     for tick, proxy in pairs(global.proxies) do
                         if proxy[target] then
                             proxy[target] = nil
@@ -720,6 +728,9 @@ script.on_event({
 
 local function on_research_finished(event)
     if unlock_researches[event.research.name] then
+        if not global._pdata then
+            init_players()
+        end
         for pi, player in pairs(event.research.force.players) do
             GUI.init(player, global._pdata[pi], true)
         end

@@ -1,7 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 5.0.8
+Date: 28. 07. 2020
+  Bugfixes:
+    - Fixed crash when removing an entity in editor mode for real this time
+    - Fixed module requests not being removed when they came from a blueprint
+---------------------------------------------------------------------------------------------------
 Version: 5.0.7
 Date: 18. 06. 2020
-  Changes:
+  Bugfixes:
     - Fixed crash when removing an entity in editor mode
 ---------------------------------------------------------------------------------------------------
 Version: 5.0.6
