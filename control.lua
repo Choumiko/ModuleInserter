@@ -274,13 +274,14 @@ local function on_player_selected_area(event)
             if ent_name == "item-request-proxy" then
                 local target = entity.proxy_target
                 if target and target.valid and config_exists(config, target.name) then
+                    entity.destroy{}
+                    target = target.unit_number
                     for tick, proxy in pairs(global.proxies) do
-                        if proxy[target.unit_number] then
-                            proxy[target.unit_number] = nil
+                        if proxy[target] then
+                            proxy[target] = nil
                             if not next(proxy) then
                                 global.proxies[tick] = nil
                             end
-                            entity.destroy{}
                             goto continue
                         end
                     end
