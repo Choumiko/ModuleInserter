@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 5.1.0
+Date: 28. 07. 2020
+  Features:
+    - You can now configure the same machine multiple times: If the first configuration can't be inserted (e.g. due to productivity not being allows),
+      ModuleInserter will try the next one
+    - Import/Export for configurations. They are a blueprint/blueprint book, so they can be stored in the blueprint library
+    - Added a mod setting to fill all empty slots when selecting the first module for a machine (Should help with modded machines that have a lot of module slots)
+  Changes:
+    - Updated the gui to be draggable and look more like the vanilla gui
+    - Module restrictions are now checked for every entity, not only beacons
+    - Allow inserting modules into assemblers without a recipe
+---------------------------------------------------------------------------------------------------
 Version: 5.0.8
 Date: 28. 07. 2020
   Bugfixes:

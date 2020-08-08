@@ -1,21 +1,13 @@
-require "__core__/lualib/util"
-local v = require "__ModuleInserter__/semver"
+local event = require("__flib__.event")
+local gui = require("__flib__.gui")
+local migration = require("__flib__.migration")
+local mi_gui = require("scripts.gui")
 
 local lib = require "__ModuleInserter__/lib_control"
 local debugDump = lib.debugDump
-local saveVar = lib.saveVar
-local config_exists = lib.config_exists
-local GUI = require "__ModuleInserter__/gui"
---local profiler = require "profiler"
-local MOD_NAME = "ModuleInserter"
-
 local UPDATE_RATE = 117
 
-local unlock_researches = {
-    ["construction-robotics"] = true,
-    ["deadlock-bronze-construction"] = true,
-    ["personal-roboport-equipment"] = true
-}
+--TODO: use script.register_on_entity_destroyed(entity) to remove proxies or sort the modules?
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -158,6 +150,7 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
                 modules = missing
             }
             local ghost = create_entity(module_proxy)
+            --script.register_on_entity_destroyed(ghost)
             proxies[entity.unit_number] = {name = ent_name, proxy = ghost, modules = modules, cTable = desired, target = entity}
         end
     end
@@ -167,8 +160,8 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
     return proxies
 end
 
-local function on_tick(event)
-    local tick = event.tick
+local function on_tick(e)
+    local tick = e.tick
     local current = global.proxies[tick]
     if current then
         local check_tick = tick + UPDATE_RATE
@@ -195,13 +188,13 @@ local function on_tick(event)
         global.proxies[tick] = nil
     end
     if not next(global.proxies) then
-        script.on_event(defines.events.on_tick, nil)
+        event.on_tick(nil)
     end
 end
 
-local function delayed_creation(event)
-    local tick = event.tick
-    local nth_tick = event.nth_tick
+local function delayed_creation(e)
+    local tick = e.tick
+    local nth_tick = e.nth_tick
     local current = global.to_create[tick]
     if current then
         local check_tick = tick + UPDATE_RATE
@@ -216,13 +209,12 @@ local function delayed_creation(event)
         end
         if next(proxies) then
             global.proxies[check_tick] = proxies
-            script.on_event(defines.events.on_tick, on_tick)
+            event.on_tick(on_tick)
         else
             global.proxies[check_tick] = nil
         end
         global.to_create[tick] = nil
     end
-    --TODO nth_tick for proxy checks
     if nth_tick ~= UPDATE_RATE then
         script.on_nth_tick(nth_tick, nil)
     end
@@ -253,37 +245,46 @@ local function conditional_events(check)
         end
     end
     if not next(global.proxies) then
-        script.on_event(defines.events.on_tick, nil)
+        event.on_tick(nil)
     else
-        script.on_event(defines.events.on_tick, on_tick)
+        event.on_tick(on_tick)
     end
     for tick in pairs(global.to_create) do
         script.on_nth_tick(tick, delayed_creation)
     end
 end
 
-local function on_player_selected_area(event)
+local function modules_allowed(recipe, modules)
+    local restricted_modules = global.restricted_modules
+    for module, _ in pairs(modules) do
+        if restricted_modules[module] and not restricted_modules[module][recipe] then
+            return false
+        end
+    end
+    return true
+end
+
+local function on_player_selected_area(e)
     local status, err = pcall(function()
-        local player_index = event.player_index
-        if event.item ~= "module-inserter" or not player_index then return end
+        local player_index = e.player_index
+        if e.item ~= "module-inserter" or not player_index then return end
         local player = game.get_player(player_index)
         local pdata = global._pdata[player_index]
-        local config = pdata.config
-        local ent_type, ent_name
-        local entity_configs = {}
+        local config = pdata.config_by_entity
+        local ent_type, ent_name, target
         local surface = player.surface
-        local restricted_modules = global.restricted_modules
-        local delay = event.tick
+        local delay = e.tick
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
         local message = false
-        for i, entity in pairs(event.entities) do
+        for i, entity in pairs(e.entities) do
             ent_name = entity.name
             --remove existing proxies if we have a config for it's target
             if ent_name == "item-request-proxy" then
-                local target = entity.proxy_target
-                if target and target.valid and config_exists(config, target.name) then
+                target = entity.proxy_target
+                if target and target.valid and config[target.name] then
                     target = target.unit_number
                     entity.destroy{}
+                    --TODO only cleanup after all entities are processed?
                     for tick, proxy in pairs(global.proxies) do
                         if proxy[target] then
                             proxy[target] = nil
@@ -295,51 +296,51 @@ local function on_player_selected_area(event)
                     end
                 end
             end
-            if not global.nameToSlots[ent_name] then
+
+            local entity_configs = config[ent_name]
+            if not entity_configs then
                 goto continue
             end
-            if entity_configs[ent_name] == nil then
-                entity_configs[ent_name] = config_exists(config, ent_name)
-            end
-            local entity_config = entity_configs[ent_name]
-            if not entity_config then
-                goto continue
-            end
+
             ent_type = entity.type
             local recipe = ent_type == "assembling-machine" and entity.get_recipe()
-            if ent_type == "assembling-machine" and not recipe then
-                player.print("Can't insert modules in assembler without recipe")
-                goto continue
-            end
-            local cTable = entity_config.cTable
-            if entity_config.limitations and recipe then
-                local message2 = false
-                recipe = recipe.name
-                for module, _ in pairs(cTable) do
-                    if restricted_modules[module] and not restricted_modules[module][recipe] then
-                        if not message2 then
-                            message2 = "item-limitation.production-module-usable-only-on-intermediates"
-                            message = message2
+            recipe = recipe and recipe.name
+            local entity_config = nil
+            local cTable = nil
+            if recipe then
+                for _, e_config in pairs(entity_configs) do
+                    if e_config.limitations then
+                        if modules_allowed(recipe, e_config.cTable) then
+                            entity_config = e_config
+                            cTable = e_config.cTable
+                            break
+                        else
+                            message = "item-limitation.production-module-usable-only-on-intermediates"
                         end
+                    else
+                        entity_config = e_config
+                        cTable = e_config.cTable
                         break
                     end
                 end
-                if message2 then
-                    goto continue
+            else
+                entity_config = entity_configs[1]
+                cTable = entity_config.cTable
+            end
+            if entity_config then
+                if (i % max_proxies == 0) then
+                    delay = delay + 1
                 end
+                if not global.to_create[delay] then global.to_create[delay] = {} end
+                global.to_create[delay][entity.unit_number] = {
+                    entity = entity,
+                    name = ent_name,
+                    modules = entity_config.to,
+                    cTable = cTable,
+                    player = player,
+                    surface = surface
+                }
             end
-            if (i % max_proxies == 0) then
-                delay = delay + 1
-            end
-            if not global.to_create[delay] then global.to_create[delay] = {} end
-            global.to_create[delay][entity.unit_number] = {
-                entity = entity,
-                name = ent_name,
-                modules = entity_config.to,
-                cTable = cTable,
-                player = player,
-                surface = surface
-            }
             ::continue::
         end
         if message then
@@ -353,10 +354,10 @@ local function on_player_selected_area(event)
     end
 end
 
-local function on_player_alt_selected_area(event)
+local function on_player_alt_selected_area(e)
     local status, err = pcall(function()
-        if not event.item == "module-inserter" then return end
-        for _, entity in pairs(event.entities) do
+        if not e.item == "module-inserter" then return end
+        for _, entity in pairs(e.entities) do
             if entity.name == "item-request-proxy" then
                 for _, proxies in pairs(global.proxies) do
                     if proxies[entity.unit_number] then
@@ -379,10 +380,6 @@ local function on_player_alt_selected_area(event)
     end
 end
 
-script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
-script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
-
---TODO get # of slots only when necessary
 local function create_lookup_tables()
     global.nameToSlots = {}
     global.module_entities = {}
@@ -450,386 +447,102 @@ local function init_global()
     global._pdata = global._pdata or {}
 end
 
-local function init_player(player)
+local function init_player(i)
     init_global()
-    local i = player.index
     local pdata = global._pdata[i] or {}
     global._pdata[i] = {
+        last_preset = pdata.last_preset or "",
         config = pdata.config or {},
         storage = pdata.storage or {},
-        settings = pdata.settings or {},
-
-        gui_actions = pdata.gui_actions or {},
-        gui_elements = pdata.gui_elements or {},
-
+        gui = pdata.gui or {},
     }
-
-    GUI.init(player, global._pdata[i], false, unlock_researches)
+    mi_gui.create_main_button(game.get_player(i), global._pdata[i])
 end
 
 local function init_players()
-    for _, player in pairs(game.players) do
-        init_player(player)
+    for i, _ in pairs(game.players) do
+        init_player(i)
     end
 end
 
-local function on_init()
-    init_global()
+event.on_init(function()
+    gui.init()
+    gui.build_lookup_tables()
     create_lookup_tables()
-end
+    init_global()
+    init_players()
+end)
 
-local function on_load()
-    -- set metatables, register conditional event handlers, local references to global
+event.on_load(function()
+    gui.build_lookup_tables()
     conditional_events()
-end
+end)
 
-local function on_configuration_changed(data)
-    if not data then
-        return
-    end
-    if data.mod_changes and data.mod_changes[MOD_NAME] then
-        local newVersion = data.mod_changes[MOD_NAME].new_version
-        newVersion = v(newVersion)
-        local oldVersion = data.mod_changes[MOD_NAME].old_version
-        -- mod was added to existing save
-        if not oldVersion then
-            init_global()
-            init_players()
-        else
-            oldVersion = v(oldVersion)
-            if oldVersion < v"0.2.3" then
-                global = {}
-                init_global()
-                init_players()
+local migrations = {
+    ["5.0.9"] = function()
+        gui.init()
+        gui.build_lookup_tables()
+        local gui_e, pdata
+        for i, _ in pairs(game.players) do
+            game.write_file("mi_old", serpent.block(global._pdata[i]))
+            pdata = global._pdata[i]
+            gui_e = pdata.gui_elements
+            if gui_e.config_frame and gui_e.config_frame.valid then
+                gui_e.config_frame.destroy()
             end
-
-            if oldVersion < v"4.0.1" then
-                --saveVar(global, "preUpdate")
-                if global.config then
-                    for name, p in pairs(global.config) do
-                        for i = #p, 1, -1 do
-                            if p[i].from == "" then
-                                global.config[name][i].from = nil
-                                global.config[name][i].to = {}
-                            end
-                            if type(p[i].to) ~= "table" then
-                                global.config[name][i].to = {}
-                            end
-                        end
-                    end
-                end
-                if global["config-tmp"] then
-                    for name, p in pairs(global["config-tmp"]) do
-                        for i = #p, 1, -1 do
-                            if p[i].from == "" then
-                                global["config-tmp"][name][i].from = nil
-                                global["config-tmp"][name][i].to = {}
-                            end
-                            if type(p[i].to) ~= "table" then
-                                global["config-tmp"][name][i].to = {}
-                            end
-                        end
-                    end
-                end
-                if global.storage then
-                    for player, store in pairs(global.storage) do
-                        for name, p in pairs(store) do
-                            for i= #p, 1, -1 do
-                                if p[i].from == "" then
-                                    global.storage[player][name][i].from = nil
-                                    global.storage[player][name][i].to = {}
-                                end
-                                if type(p[i].to) ~= "table" then
-                                    global.storage[player][name][i].to = {}
-                                end
-                            end
-                        end
-                    end
-                end
+            if gui_e.preset_frame and gui_e.preset_frame.valid then
+                gui_e.preset_frame.destroy()
+            end
+            init_player(i)
+            pdata = global._pdata[i]
+            if gui_e.main_button and gui_e.main_button.valid then
+                gui.update_filters("mod_gui_button", i, {gui_e.main_button.index}, "add")
+                pdata.gui.main_button = gui_e.main_button
             end
 
-            if oldVersion < v"4.0.4" then
-                --just to make extra sure all is set
-                init_global()
-                for i, player in pairs(game.players) do
-                    if player and player.valid then
-                        init_player(player)
-                    else
-                        global.config[i] = nil
-                        global.settings[i] = nil
-                        global.storage[i] = nil
-                        global["config-tmp"][i] = nil
-                    end
+            pdata.last_preset = ""
+            local config_by_entity = {}
+            for _, config in pairs(pdata.config) do
+                if config.from then
+                    config_by_entity[config.from] = config_by_entity[config.from] or {}
+                    config_by_entity[config.from][table_size(config_by_entity[config.from])+1] = {to = config.to, cTable = config.cTable, limitations = config.limitations}
                 end
             end
+            pdata.config_by_entity = config_by_entity
 
-            if oldVersion < v'4.1.0' then
-                init_global()
-                global.removeTicks = nil
-                local check_tick = game.tick + UPDATE_RATE
-                local proxies = global.proxies[check_tick] or {}
-                local cTable, player
-                if global.entitiesToInsert then
-                    for key, origEntity in pairs(global.entitiesToInsert) do
-                        if origEntity.entity and origEntity.entity.valid and type(origEntity.modules) == "table" then
-                            local ent = origEntity.entity
-                            player = origEntity.player and origEntity.player.valid and origEntity.player
-                            cTable = {}
-                            for _, module in pairs(origEntity.modules) do
-                                if module then
-                                    cTable[module] = (cTable[module] or 0) + 1
-                                end
-                            end
-                            proxies = create_request_proxy(ent, ent.name, origEntity.modules, cTable, proxies, player, ent.surface.create_entity)
-                        end
-                        global.entitiesToInsert[key] = nil
-                    end
-                    global.proxies[check_tick] = proxies
-                end
-                global.entitiesToInsert = nil
-                conditional_events()
-                init_players()
-            end
-
-            if oldVersion < v'4.1.1' then
-                init_global()
-                local pdata
-                for pi, p in pairs(game.players) do
-                    init_player(p)
-                    pdata = global._pdata[pi]
-                    if global.config and global.config[pi] then
-                        global.config[pi].loaded = nil
-                    end
-                    pdata.gui_elements = global.gui_elements and global.gui_elements[pi] or {}
-                    pdata.config = global.config and global.config[pi] or {}
-                    pdata.config_tmp = global["config-tmp"] and global["config-tmp"][pi] or {}
-                    pdata.storage = global.storage and global.storage[pi] or {}
-                    pdata.settings = global.settings and global.settings[pi] or {}
-                end
-                global.gui_elements = nil
-                global.config = nil
-                global.storage = nil
-                global.settings = nil
-                global["config-tmp"] = nil
-            end
-            if oldVersion < v'4.1.2' then
-                global.to_create = global.to_create or {}
-                local _item_prototypes = game.item_prototypes
-                local function create_cTable(tbl)
-                    for i, item_config in pairs(tbl) do
-                        item_config.cTable = {}
-                        local prototype, limitations
-                        for _, module in pairs(item_config.to) do
-                            if module then
-                                prototype = _item_prototypes[module]
-                                limitations = prototype and prototype.limitations
-                                if limitations and next(limitations) then
-                                    item_config.limitations = true
-                                end
-                                item_config.cTable[module] = (item_config.cTable[module] or 0) + 1
-                            end
-                        end
-                    end
-                end
-                for _, pdata in pairs(global._pdata) do
-                    create_cTable(pdata.config)
-                    create_cTable(pdata.config_tmp)
-                    for _, preset in pairs(pdata.storage) do
-                        create_cTable(preset)
-                    end
-                end
-                for pi, player in pairs(game.players) do
-                    GUI.close(global._pdata[pi], pi)
-                    GUI.init(player, global._pdata[pi], false, unlock_researches)
-                end
-            end
-            if oldVersion < v'4.1.3' then
-                for _, pdata in pairs(global._pdata) do
-                    GUI.remove_invalid_actions(pdata)
-                end
-            end
-
-            if oldVersion < v'4.1.7' then
-                init_players()
-            end
-
-            global.version = tostring(newVersion) --do i really need that?
+            pdata.gui_elements = nil
+            pdata.gui_actions = nil
+            pdata.settings = nil
         end
+    end
+}
+
+event.on_configuration_changed(function(e)
+    if migration.on_config_changed(e, migrations) then
+        gui.check_filter_validity()
     end
     create_lookup_tables()
     remove_invalid_items()
     conditional_events(true)
-    --check for other mods
-end
-
-local function on_player_created(event)
-    init_player(game.players[event.player_index])
-end
-
-local function on_pre_player_removed(event)
-    if global._pdata[event.player_index] then
-        GUI.delete(global._pdata[event.player_index])
-        global._pdata[event.player_index] = nil
-    end
-end
-
-script.on_init(on_init)
-script.on_load(on_load)
-script.on_configuration_changed(on_configuration_changed)
-script.on_event(defines.events.on_player_created, on_player_created)
-script.on_event(defines.events.on_pre_player_removed, on_pre_player_removed)
-
-script.on_event(defines.events.on_gui_click, GUI.generic_event)
-script.on_event(defines.events.on_gui_elem_changed, GUI.generic_event)
-
-local function on_runtime_mod_setting_changed(event)
-    local _, err = pcall(function()
-        if event.player_index and event.setting == "module_inserter_config_size"then
-            local pi = event.player_index
-            local pdata = global._pdata[pi]
-            GUI.close(pdata, pi)
-        end
-    end)
-    if err then
-        log("ModuleInserter: Error occured")
-        log(serpent.block(err))
-    end
-end
-script.on_event(defines.events.on_runtime_mod_setting_changed, on_runtime_mod_setting_changed)
-
-local function on_pre_mined_item(event)
-    if event.entity and event.entity.valid and global.nameToSlots[event.entity.name] then
-        local status, err = pcall(function()
-                local id = event.entity.unit_number
-                for tick, proxies in pairs(global.proxies) do
-                    if proxies[id] then
-                        proxies[id] = nil
-                        if not next(proxies) then
-                            global.proxies[tick] = nil
-                        end
-                    end
-                end
-                conditional_events()
-        end)
-        if not status then
-            debugDump(err, true)
-            conditional_events(true)
-        end
-    end
-end
-
-script.on_event({
-    defines.events.on_pre_player_mined_item,
-    defines.events.on_robot_pre_mined,
-    defines.events.on_entity_died,
-    defines.events.script_raised_destroy},
-    on_pre_mined_item
-)
-
-local function on_research_finished(event)
-    if unlock_researches[event.research.name] then
-        if not global._pdata then
-            init_players()
-        end
-        for pi, player in pairs(event.research.force.players) do
-            GUI.init(player, global._pdata[pi], true)
-        end
-    end
-end
-script.on_event(defines.events.on_research_finished, on_research_finished)
-
-commands.add_command("module-inserter", "", function()
-    if game.player.cursor_stack and not game.player.cursor_stack.valid_for_read then
-        game.player.cursor_stack.set_stack{name = "module-inserter", count = 1}
-    else
-        game.player.print("Use this command with an empty cursor")
-    end
 end)
 
-remote.add_interface("mi",
-    {
-        saveVar = function(name)
-            saveVar(global, name)
-        end,
+event.on_player_selected_area(on_player_selected_area)
+event.on_player_alt_selected_area(on_player_alt_selected_area)
 
-        init = function()
-            init_global()
-            init_players()
-        end,
+mi_gui.register_handlers()
 
-        validate_gui = function()
-            -- local player_index = game.player.index
-            -- local pdata = global._pdata[player_index]
-            -- if destroy and pdata.gui_elements.config_frame and pdata.gui_elements.config_frame.valid then
-            --     pdata.gui_elements.ruleset_grid.destroy()
-            -- end
-            for _, data in pairs(global._pdata) do
-                GUI.remove_invalid_actions(data)
-            end
-        end,
+event.on_player_created(function(e)
+    init_player(e.player_index)
+end)
 
-        get_module_config = function(player_index)
-            local pdata = global._pdata[player_index]
-            if not pdata or not pdata.config then
-                return false
-            end
+-- event.on_entity_destroyed(function(e)
+--     log(serpent.block(e))
+-- end)
 
-            local config = pdata.config
-            local tmp = {}
-            for _, ent_config in pairs(config) do
-                if ent_config.from then
-                    tmp[ent_config.from] = ent_config.cTable
-                end
-            end
-            return tmp
+commands.add_command("mi_clean", "", function()
+    for _, egui in pairs(game.player.gui.screen.children) do
+        if egui.get_mod() == "ModuleInserter" then
+            egui.destroy()
         end
-
-        -- profile = function(m, n, fast)
-        --     local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
-        --     log(#ents)
-        --     local profiler_raw = profiler
-        --     if fast then
-        --         profiler = {
-        --             p = false,
-        --             Start = function() profiler.p = game.create_profiler() end,
-        --             Stop = function() profiler.p.stop() end
-        --         }
-        --     end
-        --     m = m or 10
-        --     n = n or 10
-        --     for j = 1, m do
-        --         profiler.Start()
-        --         for i = 1, n do
-        --             local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick+i}
-        --             on_player_selected_area(event)
-        --             if fast then profiler.Stop() end
-        --             for _, current in pairs(global.proxies) do
-        --                 for k, data in pairs(current) do
-        --                     if data.proxy and data.proxy.valid then
-        --                         data.proxy.destroy()
-        --                     end
-        --                 end
-        --             end
-        --             global.proxies = {}
-        --             global.to_create = {}
-        --             if fast then profiler.p.restart() end
-        --         end
-        --         if fast then
-        --             profiler.Stop()
-        --             profiler.p.divide(10)
-        --             log{"", profiler.p}
-        --             profiler.p.divide(m*n)
-        --             log(profiler.p)
-        --         end
-        --         profiler.Stop()
-        --     end
-        --     profiler = profiler_raw
-        -- end,
-
-        -- profile_once = function()
-        --     local ents = game.player.surface.find_entities_filtered{type = {"assembling-machine", "beacon", "mining-drill", "lab", "furnace", "rocket-silo"}}
-        --     --profiler.Start(true)
-        --     local event = {entities = ents, player_index = game.player.index, item = "module-inserter", tick = game.tick}
-        --     on_player_selected_area(event)
-        -- end,
-    })
+    end
+end)

@@ -22,3 +22,31 @@ styles["mi_shortcut_bar_button_green"] = {
     parent = "shortcut_bar_button_green",
     padding = 4
 }
+
+data:extend{
+    {
+        type = "sprite",
+        name = "mi_import_string",
+        filename = "__base__/graphics/icons/shortcut-toolbar/mip/import-string-x24.png",
+        priority = "extra-high-no-scale",
+        size = 24,
+        scale = 0.5,
+        mipmap_count = 2,
+        flags = {"gui-icon"}
+    }
+}
+
+styles.mi_naked_scroll_pane = {
+  type = "scroll_pane_style",
+  extra_padding_when_activated = 0,
+  padding = 0,
+  vertically_stretchable = "on",
+  graphical_set = {
+    shadow = default_inner_shadow--luacheck: ignore
+  },
+  vertical_flow_style = {
+    type = "vertical_flow_style",
+    padding = 12,
+    top_padding = 8
+  }
+}

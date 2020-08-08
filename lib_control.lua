@@ -19,12 +19,15 @@ local function saveVar(var, name)
 end
 
 local function config_exists(config, name)
-    for i = 1, #config do
+    local configs = {}
+    local found = 1
+    for i = 1, table_size(config) do
         if config[i].from == name then
-            return config[i], i
+            configs[found] = config[i]
+            found = found + 1
         end
     end
-    return false
+    return found > 1 and configs or false
 end
 
 local M = {}

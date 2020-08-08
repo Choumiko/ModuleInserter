@@ -29,7 +29,7 @@ FILESIZE=$(stat -c "%s" "${FILE_PATH}")
 echo ${FILE_PATH} ${FILESIZE}
 
 # Get a CSRF token by loading the login form
-CSRF=$(curl -b cookiejar.txt -c cookiejar.txt -s https://mods.factorio.com/login | grep csrf_token | sed -r -e 's/.*value="(.*)".*/\1/')
+CSRF=$(curl -b cookiejar.txt -c cookiejar.txt -s https://mods.factorio.com/login?mods=1 | grep csrf_token | sed -r -e 's/.*value="(.*)".*/\1/')
 
 # Authenticate with the credential secrets and the CSRF token, getting a session cookie for the authorized user
 curl -b cookiejar.txt -c cookiejar.txt -s -F "csrf_token=${CSRF}" -F "username=${FACTORIO_USER}" -F "password=${FACTORIO_PASSWORD}" -o /dev/null https://mods.factorio.com/login

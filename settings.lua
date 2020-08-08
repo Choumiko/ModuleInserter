@@ -15,6 +15,13 @@ data:extend({
         default_value = true,
         order = "b"
     },
+    {
+        type = "bool-setting",
+        name = prefix .. "fill_all",
+        setting_type = "runtime-per-user",
+        default_value = true,
+        order = "c"
+    }
     -- {
     --     type = "bool-setting",
     --     name = prefix .. "enable_module",
