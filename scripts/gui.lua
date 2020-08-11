@@ -1,5 +1,6 @@
 local START_SIZE = 10
 local mod_gui = require '__core__/lualib/mod-gui'
+local util = require "__core__/lualib/util"
 local gui = require("__flib__.gui")
 
 local flib_table = {}
@@ -597,7 +598,8 @@ function mi_gui.create(e)
                         }},
                         {type = "flow", direction="vertical", style_mods = {padding= 12, top_padding = 8, vertical_spacing = 12}, children = {
                             {type = "frame", style = "deep_frame_in_shallow_frame", style_mods = {minimal_width = 250, minimal_height = 460}, children = {
-                                {type = "scroll-pane", style="mi_naked_scroll_pane", name = "config_rows", save_as = "main.config_rows", style_mods = {horizontally_stretchable = "on"},
+                                {type = "scroll-pane", style="mi_naked_scroll_pane", name = "config_rows", save_as = "main.config_rows",
+                                    style_mods = {horizontally_stretchable = "on"},
                                     children = gui.templates.config_rows(max_config_size, config_tmp)
                                 }
                             }}
