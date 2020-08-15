@@ -479,27 +479,165 @@ event.on_load(function()
 end)
 
 local migrations = {
+    ["4.0.1"]  = function()
+        if global.config then
+            for name, p in pairs(global.config) do
+                for i = #p, 1, -1 do
+                    if p[i].from == "" then
+                        global.config[name][i].from = nil
+                        global.config[name][i].to = {}
+                    end
+                    if type(p[i].to) ~= "table" then
+                        global.config[name][i].to = {}
+                    end
+                end
+            end
+        end
+        if global["config-tmp"] then
+            for name, p in pairs(global["config-tmp"]) do
+                for i = #p, 1, -1 do
+                    if p[i].from == "" then
+                        global["config-tmp"][name][i].from = nil
+                        global["config-tmp"][name][i].to = {}
+                    end
+                    if type(p[i].to) ~= "table" then
+                        global["config-tmp"][name][i].to = {}
+                    end
+                end
+            end
+        end
+        if global.storage then
+            for player, store in pairs(global.storage) do
+                for name, p in pairs(store) do
+                    for i= #p, 1, -1 do
+                        if p[i].from == "" then
+                            global.storage[player][name][i].from = nil
+                            global.storage[player][name][i].to = {}
+                        end
+                        if type(p[i].to) ~= "table" then
+                            global.storage[player][name][i].to = {}
+                        end
+                    end
+                end
+            end
+        end
+    end,
+    ["4.0.4"] = function()
+        init_global()
+        for i, player in pairs(game.players) do
+            if player and player.valid then
+                init_player(player)
+            else
+                global.config[i] = nil
+                global.settings[i] = nil
+                global.storage[i] = nil
+                global["config-tmp"][i] = nil
+            end
+        end
+    end,
+    ["4.1.0"] = function()
+        init_global()
+        global.removeTicks = nil
+        local check_tick = game.tick + UPDATE_RATE
+        local proxies = global.proxies[check_tick] or {}
+        local cTable, player
+        if global.entitiesToInsert then
+            for key, origEntity in pairs(global.entitiesToInsert) do
+                if origEntity.entity and origEntity.entity.valid and type(origEntity.modules) == "table" then
+                    local ent = origEntity.entity
+                    player = origEntity.player and origEntity.player.valid and origEntity.player
+                    cTable = {}
+                    for _, module in pairs(origEntity.modules) do
+                        if module then
+                            cTable[module] = (cTable[module] or 0) + 1
+                        end
+                    end
+                    proxies = create_request_proxy(ent, ent.name, origEntity.modules, cTable, proxies, player, ent.surface.create_entity)
+                end
+                global.entitiesToInsert[key] = nil
+            end
+            global.proxies[check_tick] = proxies
+        end
+        global.entitiesToInsert = nil
+        conditional_events()
+        init_players()
+    end,
+
+    ["4.1.1"] = function()
+        init_global()
+        local pdata
+        for pi, p in pairs(game.players) do
+            init_player(p)
+            pdata = global._pdata[pi]
+            if global.config and global.config[pi] then
+                global.config[pi].loaded = nil
+            end
+            pdata.gui_elements = global.gui_elements and global.gui_elements[pi] or {}
+            pdata.config = global.config and global.config[pi] or {}
+            pdata.config_tmp = global["config-tmp"] and global["config-tmp"][pi] or {}
+            pdata.storage = global.storage and global.storage[pi] or {}
+            pdata.settings = global.settings and global.settings[pi] or {}
+        end
+        global.gui_elements = nil
+        global.config = nil
+        global.storage = nil
+        global.settings = nil
+        global["config-tmp"] = nil
+    end,
+    ["4.1.2"] = function()
+        global.to_create = global.to_create or {}
+        local _item_prototypes = game.item_prototypes
+        local function create_cTable(tbl)
+            for i, item_config in pairs(tbl) do
+                item_config.cTable = {}
+                local prototype, limitations
+                for _, module in pairs(item_config.to) do
+                    if module then
+                        prototype = _item_prototypes[module]
+                        limitations = prototype and prototype.limitations
+                        if limitations and next(limitations) then
+                            item_config.limitations = true
+                        end
+                        item_config.cTable[module] = (item_config.cTable[module] or 0) + 1
+                    end
+                end
+            end
+        end
+        for _, pdata in pairs(global._pdata) do
+            create_cTable(pdata.config)
+            create_cTable(pdata.config_tmp)
+            for _, preset in pairs(pdata.storage) do
+                create_cTable(preset)
+            end
+        end
+    end,
+    ["4.1.7"] = function()
+        init_players()
+    end,
     ["5.0.9"] = function()
         gui.init()
         gui.build_lookup_tables()
+        init_players()
         local gui_e, pdata
-        for i, _ in pairs(game.players) do
-            game.write_file("mi_old", serpent.block(global._pdata[i]))
+        for i, player in pairs(game.players) do
             pdata = global._pdata[i]
             gui_e = pdata.gui_elements
-            if gui_e.config_frame and gui_e.config_frame.valid then
-                gui_e.config_frame.destroy()
+            if gui_e then
+                if gui_e.config_frame and gui_e.config_frame.valid then
+                    gui_e.config_frame.destroy()
+                end
+                if gui_e.preset_frame and gui_e.preset_frame.valid then
+                    gui_e.preset_frame.destroy()
+                end
+                init_player(i)
+                pdata = global._pdata[i]
+                if gui_e.main_button and gui_e.main_button.valid then
+                    gui.update_filters("mod_gui_button", i, {gui_e.main_button.index}, "add")
+                    pdata.gui.main_button = gui_e.main_button
+                end
             end
-            if gui_e.preset_frame and gui_e.preset_frame.valid then
-                gui_e.preset_frame.destroy()
-            end
-            init_player(i)
-            pdata = global._pdata[i]
-            if gui_e.main_button and gui_e.main_button.valid then
-                gui.update_filters("mod_gui_button", i, {gui_e.main_button.index}, "add")
-                pdata.gui.main_button = gui_e.main_button
-            end
-
+            mi_gui.create_main_button(player, pdata)
+            gui.update_filters("mod_gui_button", i, {pdata.gui.main_button.index}, "add")
             pdata.last_preset = ""
             local config_by_entity = {}
             for _, config in pairs(pdata.config) do
