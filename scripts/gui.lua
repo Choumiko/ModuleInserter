@@ -562,6 +562,7 @@ function mi_gui.create_main_button(player, pdata)
         pdata.gui.main_button = gui_data.main_button
     else
         pdata.gui.main_button = button
+        gui.update_filters("mod_gui_button", player.index, {pdata.gui.main_button.index}, "add")
     end
 end
 
