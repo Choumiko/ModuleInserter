@@ -277,7 +277,7 @@ mi_gui.handlers = {
                     end
                 end
                 e.pdata.config_by_entity = config_by_entity
-                log(serpent.block(config_by_entity))
+                --log(serpent.block(config_by_entity))
                 mi_gui.close(e)
             end,
         },

@@ -411,7 +411,7 @@ local function remove_invalid_items()
     local entities = game.entity_prototypes
     local function _remove(tbl)
         for _, config in pairs(tbl) do
-            if config.from and not entities[config.from] then
+            if (config.from or config.from == false) and not entities[config.from] then
                 config.from = nil
                 config.to = {}
                 config.cTable = {}
@@ -445,6 +445,10 @@ local function init_global()
     global.nameToSlots = global.nameToSlots or {}
     global.restricted_modules = global.restricted_modules or {}
     global._pdata = global._pdata or {}
+    if not (global.__flib and global.__flib.gui) then
+        gui.init()
+        gui.build_lookup_tables()
+    end
 end
 
 local function init_player(i)
@@ -526,7 +530,7 @@ local migrations = {
         init_global()
         for i, player in pairs(game.players) do
             if player and player.valid then
-                init_player(player)
+                init_player(i)
             else
                 global.config[i] = nil
                 global.settings[i] = nil
@@ -566,8 +570,15 @@ local migrations = {
     ["4.1.1"] = function()
         init_global()
         local pdata
-        for pi, p in pairs(game.players) do
-            init_player(p)
+        for pi, player in pairs(game.players) do
+            if player.gui.left.mod_gui_frame_flow and player.gui.left.mod_gui_frame_flow then
+                for _, egui in pairs(player.gui.left.mod_gui_frame_flow.children) do
+                    if egui.get_mod() == "ModuleInserter" then
+                        egui.destroy()
+                    end
+                end
+            end
+            init_player(pi)
             pdata = global._pdata[pi]
             if global.config and global.config[pi] then
                 global.config[pi].loaded = nil
