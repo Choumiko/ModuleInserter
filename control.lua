@@ -271,6 +271,10 @@ local function on_player_selected_area(e)
         local player = game.get_player(player_index)
         local pdata = global._pdata[player_index]
         local config = pdata.config_by_entity
+        if not config then
+            player.print({"module-inserter-config-not-set"})
+            return
+        end
         local ent_type, ent_name, target
         local surface = player.surface
         local delay = e.tick
