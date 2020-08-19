@@ -3,10 +3,7 @@ build/*
 factorio_mods
 /.buildpath
 /.project
-gui.xcf
-gui2.xcf
 module-inserter.xcf
-graphics/gui.png2
 cookiejar.txt
 thumbnail.xcf
 new-module-inserter-x32-white.xcf
