@@ -36,7 +36,7 @@ styles.frame_action_button_red =
       {
         base = {position = {170, 17}, corner_size = 8},
         shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
-        glow = default_glow(red_button_glow_color, 0.5)
+        glow = default_glow(red_button_glow_color, 0.5)--luacheck: ignore
       },
       clicked_graphical_set =
       {

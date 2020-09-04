@@ -9,7 +9,7 @@
   "dependencies": ["flib", "(?) omnimatter"],
   "package":{
     "scripts": {
-        "prepackage": "luacheck ."
+        "prepackage": "luacheck . --config '../.luacheckrc'"
     },
     "ignore":[ "*.zip", "*.xcf" ]
   }
