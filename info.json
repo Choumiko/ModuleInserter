@@ -1,10 +1,16 @@
 {
   "name": "ModuleInserter",
-  "version": "5.1.4",
-  "factorio_version": "0.18",
+  "version": "5.1.5",
+  "factorio_version": "1.0",
   "title": "Module Inserter",
   "author": "Choumiko",
   "homepage": "https://forums.factorio.com/viewtopic.php?f=97&t=15184",
   "description": "Mass insert/remove modules into machines with construction robots",
-  "dependencies": ["flib", "(?) omnimatter", "base >= 0.18.27"]
+  "dependencies": ["flib", "(?) omnimatter"],
+  "package":{
+    "scripts": {
+        "prepackage": "luacheck ."
+    },
+    "ignore":[ "*.zip", "*.xcf" ]
+  }
 }

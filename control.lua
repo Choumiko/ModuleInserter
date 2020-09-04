@@ -45,6 +45,19 @@ local function sort_modules(entity, modules, cTable)
     end
 end
 
+local function on_mod_item_opened(e)
+    e.player = game.get_player(e.player_index)
+    e.pdata = global._pdata[e.player_index]
+    mi_gui.open(e)
+end
+event.on_mod_item_opened(on_mod_item_opened)
+
+event.register("toggle-module-inserter", function(e)
+    e.player = game.get_player(e.player_index)
+    e.pdata = global._pdata[e.player_index]
+    mi_gui.toggle(e)
+end)
+
 local function drop_module(entity, name, count, module_inventory, chest, create_entity)
     if not (chest and chest.valid) then
         chest = create_entity{
@@ -686,6 +699,16 @@ mi_gui.register_handlers()
 
 event.on_player_created(function(e)
     init_player(e.player_index)
+end)
+
+event.on_runtime_mod_setting_changed(function(e)
+    if e.player_index and e.setting == "module_inserter_hide_button" then
+        local pdata = global._pdata[e.player_index]
+        local player = game.get_player(e.player_index)
+        if pdata.gui.main_button and pdata.gui.main_button.valid then
+            pdata.gui.main_button.visible = not player.mod_settings["module_inserter_hide_button"].value
+        end
+    end
 end)
 
 -- event.on_entity_destroyed(function(e)

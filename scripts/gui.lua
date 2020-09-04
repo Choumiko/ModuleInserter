@@ -385,6 +385,13 @@ mi_gui.handlers = {
                 config.cTable = cTable
             end
         },
+        destroy_tool = {
+            on_gui_click = function(e)
+                e.player.get_main_inventory().remove{name = "module-inserter", count = 1}
+                mi_gui.close(e)
+            end
+        },
+
         window = {
             on_gui_closed = function(e)
                 mi_gui.close(e)
@@ -585,6 +592,8 @@ function mi_gui.create(e)
                 {type = "flow", save_as = "main.titlebar.flow", children = {
                     {type = "label", style = "frame_title", caption = "Module Inserter", elem_mods = {ignored_by_interaction = true}},
                     {type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = {ignored_by_interaction = true}},
+                    {type = "sprite-button", style = "frame_action_button_red", sprite = "utility/trash", tooltip = {"module-inserter-destroy"},
+                        handlers = "main.destroy_tool"},
                     {template = "frame_action_button", sprite = "utility/close_white", hovered_sprite = "utility/close_black", clicked_sprite = "utility/close_black",
                         handlers = "main.close_button", save_as = "main.titlebar.close_button"}
                 }},

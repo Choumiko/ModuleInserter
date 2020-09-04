@@ -11,6 +11,13 @@ data:extend({
         consuming = 'none'
     },
     {
+        type = 'custom-input',
+        name = 'toggle-module-inserter',
+        key_sequence = "CONTROL + I",
+        action = 'lua',
+        consuming = 'none',
+    },
+    {
         type = 'shortcut',
         name = 'module-inserter',
         --order = "a[yarm]",
@@ -45,7 +52,7 @@ data:extend({
         icon = "__ModuleInserter__/graphics/module-inserter-icon.png",
         icon_size = 32,
         icon_mipmaps = 0,
-        flags = {"hidden", "only-in-cursor"},
+        flags = {"hidden", "not-stackable", "mod-openable"},
         stack_size = 1,
         selection_color = { r = 0, g = 1, b = 0 },
         alt_selection_color = { r = 0, g = 0, b = 1 },
@@ -56,6 +63,6 @@ data:extend({
         entity_type_filters = {"mining-drill", "furnace", "assembling-machine", "lab", "beacon", "rocket-silo", "item-request-proxy"},
         entity_filter_mode = "whitelist",
         alt_entity_filters = {"item-request-proxy"},
-        alt_entity_filter_mode = "whitelist"
-    }
+        alt_entity_filter_mode = "whitelist",
+    },
 })

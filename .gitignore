@@ -1,9 +1,3 @@
-build
-build/*
-factorio_mods
-/.buildpath
-/.project
-module-inserter.xcf
-cookiejar.txt
-thumbnail.xcf
-new-module-inserter-x32-white.xcf
+*.xcf
+*.zip
+

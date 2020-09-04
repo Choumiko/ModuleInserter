@@ -21,6 +21,13 @@ data:extend({
         setting_type = "runtime-per-user",
         default_value = true,
         order = "c"
+    },
+    {
+        type = "bool-setting",
+        name = prefix .. "hide_button",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "d"
     }
     -- {
     --     type = "bool-setting",

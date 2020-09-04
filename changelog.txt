@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 5.1.5
+Date: ????
+  Features:
+    - The gui can be opened by right-clicking a Module Inserter
+    - Added hotkey to toggle the gui (Default: Ctrl + I)
+    - Added mod setting to hide the button in the top left corner
+---------------------------------------------------------------------------------------------------
 Version: 5.1.4
 Date: 19. 08. 2020
   Bugfixes:
