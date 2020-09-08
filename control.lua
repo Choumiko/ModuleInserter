@@ -2,6 +2,7 @@ local event = require("__flib__.event")
 local gui = require("__flib__.gui")
 local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
+local table = require("__flib__.table")
 
 local lib = require "__ModuleInserter__/lib_control"
 local debugDump = lib.debugDump
@@ -78,7 +79,59 @@ local function drop_module(entity, name, count, module_inventory, chest, create_
     return chest
 end
 
-local function create_request_proxy(entity, ent_name, modules, desired, proxies, player, create_entity)
+local function print_planner(planner)
+    for i = 1, 4 do
+        log(serpent.line(planner.get_mapper(i, "from")) .. serpent.line(planner.get_mapper(i, "to")))
+    end
+end
+
+--TODO: figure out which modules can be replaced via upgrade item
+--only 1 type desired
+--multiple module types if:
+--  amounts can be matched from contents to desired
+local function create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
+    if desired_count == 1 then
+        local from = {type = "item", name = ""}
+        local to = {type = "item", name = next(desired)}
+        local i = 0
+        for name, _ in pairs(contents) do
+            if name ~= to.name then
+                i = i + 1
+                from.name = name
+                upgrade_planner.set_mapper(i, "from", from)
+                upgrade_planner.set_mapper(i, "to", to)
+            end
+        end
+        if i > 0 then
+            return upgrade_planner
+        end
+    end
+    local matches = {}
+    local assigned = {}
+    for name, c in pairs(contents) do
+        for name_d, c_d in pairs(desired) do
+            if c == c_d  and not matches[name] and not assigned[name_d] and name ~= name_d then
+                matches[name] = name_d
+                assigned[name_d] = name
+            end
+        end
+    end
+    if desired_count == table_size(matches) then
+        local from = {type = "item", name = ""}
+        local to = {type = "item", name = next(desired)}
+        local i = 1
+        for name, name_d in pairs(matches) do
+            from.name = name
+            to.name = name_d
+            upgrade_planner.set_mapper(i, "from", from)
+            upgrade_planner.set_mapper(i, "to", to)
+            i = i + 1
+        end
+        return upgrade_planner
+    end
+end
+
+local function create_request_proxy(entity, modules, desired, proxies, player, create_entity, upgrade_planner)
     local module_inventory = entity.get_module_inventory()
     if not module_inventory then
         return proxies
@@ -86,65 +139,49 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
 
     local contents = module_inventory.get_contents()
     local same = compare_contents(desired, contents)
-    local needs_sorting = table_size(desired) > 1
+    local desired_count = table_size(desired)
+    local needs_sorting = desired_count > 1
 
-    if not same then
-        local missing = {}
-        --local surplus = {}
-        local changed
-        local diff
-        local chest = false
-        --Drop all modules and done
-        if not next(desired) then
-            for name, count in pairs(contents) do
-                chest = drop_module(entity, name, count, module_inventory, chest, create_entity)
+    if same then
+        if needs_sorting then
+            sort_modules(entity, modules, desired)
+        end
+        return proxies
+    end
+
+    local planner = create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
+    if planner then
+        --print_planner(planner)
+        entity.surface.upgrade_area{area = entity.bounding_box, force = player.force, player = player, item = planner, skip_fog_of_war = false}
+        planner.clear_upgrade_item()
+        --print_planner(planner)
+        local to_add = table_size(modules) - module_inventory.get_item_count()
+        local irp
+        if to_add > 0 and desired_count == 1 then
+            --find created proxy and change item requests
+            local to = {type = "item", name = next(desired)}
+            irp = entity.surface.find_entity("item-request-proxy", entity.position)
+            if irp then
+                local requests = irp.item_requests
+                requests[to.name] = desired[to.name] - (contents[to.name] or 0)
+                irp.item_requests = requests
+                return proxies
             end
-            if chest and chest.valid then
-                if player and player.valid then
-                    chest.order_deconstruction(chest.force, player)
-                else
-                    chest.order_deconstruction(chest.force)
-                end
-            end
+        end
+        if to_add == 0 then
             return proxies
         end
-        --Request all modules and done
-        if not next(contents) then
-            missing = desired
-            local ghost = create_entity{
-                name = "item-request-proxy",
-                position = entity.position,
-                force = entity.force,
-                target = entity,
-                modules = missing,
-                raise_built = true
-            }
-            if ghost and needs_sorting then
-                local reg_id = script.register_on_entity_destroyed(ghost)
-                proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
-            end
-            return proxies
-        end
-        for name, count in pairs(desired) do
-            diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
-            contents[name] = nil
-            if diff < 0 then
-                missing[name] = -1 * diff
-            elseif diff > 0 then
-                chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
-                --surplus[name] = diff
-            end
-        end
+    end
+
+    local missing = {}
+    --local surplus = {}
+    local changed
+    local diff
+    local chest = false
+    --Drop all modules and done
+    if not next(desired) then
         for name, count in pairs(contents) do
-            diff = count - (desired[name] or 0) -- >0: drop, < 0 missing
-            --assert(not missing[name] and not surplus[name])
-            if diff < 0 then
-                missing[name] = -1 * diff
-            elseif diff > 0 then
-                chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
-                --surplus[name] = diff
-                changed = true
-            end
+            chest = drop_module(entity, name, count, module_inventory, chest, create_entity)
         end
         if chest and chest.valid then
             if player and player.valid then
@@ -153,27 +190,70 @@ local function create_request_proxy(entity, ent_name, modules, desired, proxies,
                 chest.order_deconstruction(chest.force)
             end
         end
-        if changed then
-            contents = module_inventory.get_contents()
-            same = compare_contents(desired, contents)
+        return proxies
+    end
+    --Request all modules and done
+    if not next(contents) then
+        missing = desired
+        local ghost = create_entity{
+            name = "item-request-proxy",
+            position = entity.position,
+            force = entity.force,
+            target = entity,
+            modules = missing,
+            raise_built = true
+        }
+        if ghost and needs_sorting then
+            script.register_on_entity_destroyed(ghost)
+            proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
         end
-        if not same and next(missing) then
-            local ghost = create_entity{
-                name = "item-request-proxy",
-                position = entity.position,
-                force = entity.force,
-                target = entity,
-                modules = missing,
-                raise_built = true
-            }
-            if ghost and needs_sorting then
-                local reg_id = script.register_on_entity_destroyed(ghost)
-                proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
-            end
+        return proxies
+    end
+    for name, count in pairs(desired) do
+        diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
+        contents[name] = nil
+        if diff < 0 then
+            missing[name] = -1 * diff
+        elseif diff > 0 then
+            chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
+            --surplus[name] = diff
         end
     end
-    if same and needs_sorting then
-        sort_modules(entity, modules, desired)
+    for name, count in pairs(contents) do
+        diff = count - (desired[name] or 0) -- >0: drop, < 0 missing
+        --assert(not missing[name] and not surplus[name])
+        if diff < 0 then
+            missing[name] = -1 * diff
+        elseif diff > 0 then
+            chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
+            --surplus[name] = diff
+            changed = true
+        end
+    end
+    if chest and chest.valid then
+        if player and player.valid then
+            chest.order_deconstruction(chest.force, player)
+        else
+            chest.order_deconstruction(chest.force)
+        end
+    end
+    if changed then
+        contents = module_inventory.get_contents()
+        same = compare_contents(desired, contents)
+    end
+    if not same and next(missing) then
+        local ghost = create_entity{
+            name = "item-request-proxy",
+            position = entity.position,
+            force = entity.force,
+            target = entity,
+            modules = missing,
+            raise_built = true
+        }
+        if ghost and needs_sorting then
+            script.register_on_entity_destroyed(ghost)
+            proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
+        end
     end
     return proxies
 end
@@ -183,12 +263,15 @@ local function delayed_creation(e)
     if current then
         local proxies = global.proxies
         local ent
+        local upgrade_inventory = game.create_inventory(1)
+        upgrade_inventory.insert{name = "upgrade-planner"}
         for _, data in pairs(current) do
             ent = data.entity
             if ent and ent.valid then
-                proxies = create_request_proxy(ent, data.name, data.modules, data.cTable, proxies, data.player, data.surface.create_entity)
+                proxies = create_request_proxy(ent, data.modules, data.cTable, proxies, data.player, data.surface.create_entity, upgrade_inventory[1])
             end
         end
+        upgrade_inventory.destroy()
         global.proxies = proxies
         global.to_create[e.tick] = nil
         script.on_nth_tick(e.nth_tick, nil)
@@ -287,9 +370,8 @@ local function on_player_selected_area(e)
                 if not global.to_create[delay] then global.to_create[delay] = {} end
                 global.to_create[delay][entity.unit_number] = {
                     entity = entity,
-                    name = ent_name,
-                    modules = entity_config.to,
-                    cTable = cTable,
+                    modules = table.shallow_copy(entity_config.to),
+                    cTable = table.shallow_copy(cTable),
                     player = player,
                     surface = surface
                 }
