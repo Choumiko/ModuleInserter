@@ -1,9 +1,7 @@
 local START_SIZE = 10
-local mod_gui = require '__core__/lualib/mod-gui'
-local util = require "__core__/lualib/util"
+local mod_gui = require("__core__.lualib.mod-gui")
+local table = require("__flib__.table")
 local gui = require("__flib__.gui")
-
-local flib_table = {}
 
 local function export_config(config_data, name)
     local to_bp_entities = function(data)
@@ -108,48 +106,6 @@ local function import_config(bp_string)
     end
 end
 
-function flib_table.deep_copy(tbl)
-  local lookup_table = {}
-  local function _copy(object)
-    if type(object) ~= "table" then
-      return object
-    -- don't copy factorio rich objects
-    elseif object.__self then
-      return object
-    elseif lookup_table[object] then
-      return lookup_table[object]
-    end
-
-    local new_table = {}
-    lookup_table[object] = new_table
-    for index, value in pairs(object) do
-      new_table[_copy(index)] = _copy(value)
-    end
-
-    return setmetatable(new_table, getmetatable(object))
-  end
-  return _copy(tbl)
-end
-
-function flib_table.deep_merge(tables)
-  local output = {}
-  for _, tbl in ipairs(tables) do
-    for k, v in pairs(tbl) do
-      if type(v) == "table" then
-        if type(output[k] or false) == "table" then
-          output[k] = flib_table.deep_merge{output[k], v}
-        else
-          output[k] = flib_table.deep_copy(v)
-        end
-      else
-        output[k] = v
-      end
-    end
-  end
-  return output
-end
-
-
 local mi_gui = {}
 
 function mi_gui.register_handlers()
@@ -175,7 +131,7 @@ end
 
 function mi_gui.build(parent, structures, gui_data)
     local output, filters = gui.build(parent, structures)
-    return flib_table.deep_merge{gui_data, output}, filters
+    return table.deep_merge{gui_data, output}, filters
 end
 
 mi_gui.templates = {
@@ -268,7 +224,7 @@ mi_gui.handlers = {
     main = {
         apply_changes = {
             on_gui_click = function(e)
-                e.pdata.config = util.table.deepcopy(e.pdata.config_tmp)
+                e.pdata.config = table.deep_copy(e.pdata.config_tmp)
                 local config_by_entity = {}
                 for _, config in pairs(e.pdata.config) do
                     if config.from then
@@ -466,8 +422,8 @@ mi_gui.handlers = {
                 local preset = pdata.storage[name]
                 if not preset then return end
 
-                pdata.config_tmp = util.table.deepcopy(preset)
-                pdata.config = util.table.deepcopy(preset)
+                pdata.config_tmp = table.deep_copy(preset)
+                pdata.config = table.deep_copy(preset)
 
                 --TODO save the last loaded/saved preset somewhere to fill the textfield
                 gui_elements.presets.save.textfield.text = name or ""
@@ -576,7 +532,7 @@ end
 function mi_gui.create(e)
     local pdata = e.pdata
     local player = e.player
-    pdata.config_tmp = util.table.deepcopy(pdata.config)
+    pdata.config_tmp = table.deep_copy(pdata.config)
     local config_tmp = pdata.config_tmp
 
     local max_config_size = table_size(config_tmp)
@@ -779,13 +735,13 @@ function mi_gui.add_preset(player, pdata, name, config, textfield)
             end
             return
         else
-            pdata.storage[name] = util.table.deepcopy(config)
+            pdata.storage[name] = table.deep_copy(config)
             player.print{"module-inserter-storage-updated", name}
             return
         end
     end
 
-    pdata.storage[name] = util.table.deepcopy(config)
+    pdata.storage[name] = table.deep_copy(config)
     gui.build(gui_elements.presets.scroll_pane, {gui.templates.preset_row(name)})
 end
 
@@ -796,14 +752,15 @@ function mi_gui.destroy(e)
     gui.update_filters("preset", player_index, nil, "remove")
     gui.update_filters("presets", player_index, nil, "remove")
     gui.update_filters("import", player_index, nil, "remove")
-    pdata.gui.main.window.destroy()
-    if pdata.gui.import then
-        if pdata.gui.import.window.main then
-            pdata.gui.import.window.main.destroy()
-        end
+    if pdata.gui.main and pdata.gui.main.window and pdata.gui.main.window.valid then
+        pdata.gui.main.window.destroy()
+    end
+    if pdata.gui.import and pdata.gui.import.window and pdata.gui.import.window.main and pdata.gui.import.window.main.valid then
+        pdata.gui.import.window.main.destroy()
     end
     pdata.gui.main = nil
     pdata.gui.presets = nil
+    pdata.gui.import = nil
     pdata.gui_open = false
 end
 
