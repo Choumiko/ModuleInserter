@@ -79,7 +79,7 @@ local function drop_module(entity, name, count, module_inventory, chest, create_
     return chest
 end
 
-local function print_planner(planner)
+local function print_planner(planner)--luacheck: ignore
     for i = 1, 4 do
         log(serpent.line(planner.get_mapper(i, "from")) .. serpent.line(planner.get_mapper(i, "to")))
     end
@@ -583,7 +583,7 @@ local migrations = {
             for _, data in pairs(proxies) do
                 if data.proxy and data.target then
                     if data.proxy.valid and table_size(data.cTable) > 1 then
-                        local reg_id = script.register_on_entity_destroyed(data.proxy)
+                        script.register_on_entity_destroyed(data.proxy)
                         to_register[data.proxy.unit_number] = {modules = data.modules, cTable = data.cTable, target = data.target}
                     end
                     if not data.proxy.valid then
