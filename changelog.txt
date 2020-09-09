@@ -5,6 +5,9 @@ Date: ????
     - The gui can be opened by right-clicking a Module Inserter
     - Added hotkey to toggle the gui (Default: Ctrl + I)
     - Added mod setting to hide the button in the top left corner
+  Changes:
+    - Upgrading/changing modules uses the upgrade planner functionality in most cases,
+      so that modules only get dropped when the new modules are delivered.
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.4
 Date: 19. 08. 2020

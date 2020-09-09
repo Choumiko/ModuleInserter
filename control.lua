@@ -90,6 +90,7 @@ end
 --multiple module types if:
 --  amounts can be matched from contents to desired
 local function create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
+    if table_size(contents) == 0 then return end
     if desired_count == 1 then
         local from = {type = "item", name = ""}
         local to = {type = "item", name = next(desired)}
@@ -108,9 +109,16 @@ local function create_upgrade_planner(contents, desired, desired_count, upgrade_
     end
     local matches = {}
     local assigned = {}
+    --"upgrading" to the same module
+    for name, c in pairs(contents) do
+        if desired[name] and desired[name] == c then
+            matches[name] = name
+            assigned[name] = name
+        end
+    end
     for name, c in pairs(contents) do
         for name_d, c_d in pairs(desired) do
-            if c == c_d  and not matches[name] and not assigned[name_d] and name ~= name_d then
+            if c == c_d and not matches[name] and not assigned[name_d] then
                 matches[name] = name_d
                 assigned[name_d] = name
             end
@@ -121,11 +129,13 @@ local function create_upgrade_planner(contents, desired, desired_count, upgrade_
         local to = {type = "item", name = next(desired)}
         local i = 1
         for name, name_d in pairs(matches) do
-            from.name = name
-            to.name = name_d
-            upgrade_planner.set_mapper(i, "from", from)
-            upgrade_planner.set_mapper(i, "to", to)
-            i = i + 1
+            if name ~= name_d then
+                from.name = name
+                to.name = name_d
+                upgrade_planner.set_mapper(i, "from", from)
+                upgrade_planner.set_mapper(i, "to", to)
+                i = i + 1
+            end
         end
         return upgrade_planner
     end
@@ -157,18 +167,22 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
         --print_planner(planner)
         local to_add = table_size(modules) - module_inventory.get_item_count()
         local irp
-        if to_add > 0 and desired_count == 1 then
+        if desired_count > 1 or to_add > 0 then
+            irp = entity.surface.find_entity("item-request-proxy", entity.position)
+        end
+        if to_add > 0 and desired_count == 1 and irp then
             --find created proxy and change item requests
             local to = {type = "item", name = next(desired)}
-            irp = entity.surface.find_entity("item-request-proxy", entity.position)
-            if irp then
-                local requests = irp.item_requests
-                requests[to.name] = desired[to.name] - (contents[to.name] or 0)
-                irp.item_requests = requests
-                return proxies
-            end
+            local requests = irp.item_requests
+            requests[to.name] = desired[to.name] - (contents[to.name] or 0)
+            irp.item_requests = requests
+            return proxies
         end
         if to_add == 0 then
+            if irp and needs_sorting then
+                script.register_on_entity_destroyed(irp)
+                proxies[irp.unit_number] = {modules = modules, cTable = desired, target = entity}
+            end
             return proxies
         end
     end
