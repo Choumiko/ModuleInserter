@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.5
-Date: ????
+Date: 2020-09-09
   Features:
     - The gui can be opened by right-clicking a Module Inserter
     - Added hotkey to toggle the gui (Default: Ctrl + I)
