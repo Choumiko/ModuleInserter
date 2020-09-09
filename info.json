@@ -6,7 +6,7 @@
   "author": "Choumiko",
   "homepage": "https://forums.factorio.com/viewtopic.php?f=97&t=15184",
   "description": "Mass insert/remove modules into machines with construction robots",
-  "dependencies": ["flib", "(?) omnimatter"],
+  "dependencies": ["flib >= 0.3.0", "(?) omnimatter"],
   "package":{
     "scripts": {
         "prepackage": "luacheck . --config '../.luacheckrc'"
