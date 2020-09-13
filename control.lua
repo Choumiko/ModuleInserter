@@ -602,6 +602,9 @@ local migrations = {
 
 event.on_configuration_changed(function(e)
     if migration.on_config_changed(e, migrations) then
+        if not global.__flib then
+            gui.init()
+        end
         gui.check_filter_validity()
     end
     create_lookup_tables()
@@ -631,10 +634,26 @@ end)
 event.on_entity_destroyed(function(e)
     if e.unit_number and global.proxies[e.unit_number] then
         local data = global.proxies[e.unit_number]
-        sort_modules(data.target, data.modules, data.cTable)
+        if data.target and data.target.valid then
+            sort_modules(data.target, data.modules, data.cTable)
+        end
         global.proxies[e.unit_number] = nil
     end
 end)
+
+-- event.on_player_cursor_stack_changed(function(e)
+--     local player = game.get_player(e.player_index)
+--     if player.cursor_stack.valid_for_read and player.cursor_stack.name == "module-inserter" then
+--         global._pdata[e.player_index].cursor = true
+--     elseif global._pdata[e.player_index].cursor then
+--         global._pdata[e.player_index].cursor = false
+--         local inv = player.get_main_inventory()
+--         local count = inv.get_item_count("module-inserter")
+--         if count > 1 then
+--             inv.remove{name = "module-inserter", count = count - 1}
+--         end
+--     end
+-- end)
 
 commands.add_command("mi_clean", "", function()
     for _, egui in pairs(game.player.gui.screen.children) do
