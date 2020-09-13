@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.6
-Date: ????
+Date: 2020-09-13
   Bugfixes:
     - Fixed unreproducible error when editing a scenario in the map editor
     - Fixed error when removing a machine that requested multiple modules to be inserted
