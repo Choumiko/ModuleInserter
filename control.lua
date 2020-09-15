@@ -90,7 +90,7 @@ end
 --multiple module types if:
 --  amounts can be matched from contents to desired
 local function create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
-    if table_size(contents) == 0 then return end
+    if desired_count == 0 or table_size(contents) == 0 then return end
     if desired_count == 1 then
         local from = {type = "item", name = ""}
         local to = {type = "item", name = next(desired)}
@@ -127,17 +127,19 @@ local function create_upgrade_planner(contents, desired, desired_count, upgrade_
     if desired_count == table_size(matches) then
         local from = {type = "item", name = ""}
         local to = {type = "item", name = next(desired)}
-        local i = 1
+        local i = 0
         for name, name_d in pairs(matches) do
             if name ~= name_d then
                 from.name = name
                 to.name = name_d
+                i = i + 1
                 upgrade_planner.set_mapper(i, "from", from)
                 upgrade_planner.set_mapper(i, "to", to)
-                i = i + 1
             end
         end
-        return upgrade_planner
+        if i > 0 then
+            return upgrade_planner
+        end
     end
 end
 
@@ -193,7 +195,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
     local diff
     local chest = false
     --Drop all modules and done
-    if not next(desired) then
+    if desired_count == 0 then
         for name, count in pairs(contents) do
             chest = drop_module(entity, name, count, module_inventory, chest, create_entity)
         end
@@ -577,9 +579,7 @@ local migrations = {
     end,
     ["5.1.5"] = function()
         local to_register = {}
-        local old_v = 0
         for _, proxies in pairs(global.proxies) do
-            old_v = old_v + table_size(proxies)
             for _, data in pairs(proxies) do
                 if data.proxy and data.target then
                     if data.proxy.valid and table_size(data.cTable) > 1 then
@@ -597,7 +597,14 @@ local migrations = {
         event.on_tick(nil)
         global.proxies = to_register
         conditional_events(true)
-    end
+    end,
+    ["5.1.7"] = function()
+        for id, data in pairs(global.proxies) do
+            if not (data.target and data.target.valid) then
+                global.proxies[id] = nil
+            end
+        end
+    end,
 }
 
 event.on_configuration_changed(function(e)
