@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.8
-Date: ????
+Date: 2020-09-20
   Changes:
     - Added mod setting to keep the gui open after loading a preset
     - Highlight the button of the last loaded preset.
