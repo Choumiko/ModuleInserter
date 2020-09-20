@@ -172,19 +172,19 @@ mi_gui.templates = {
         end
         return config_rows
     end,
-    preset_row = function(name)
+    preset_row = function(name, selected)
         return {type = "flow", direction = "horizontal", children = {
-                    {type = "button", caption = name, handlers = "preset.load", style_mods = {width = 150}},
+                    {type = "button", caption = name, handlers = "preset.load", style = name == selected and "mi_preset_button_selected" or "mi_preset_button"},
                     {template = "pushers.horizontal"},
                     {type = "sprite-button", handlers = "preset.export", style = "tool_button", sprite = "utility/export_slot", tooltip = {"module-inserter-export_tt"}},
                     {type = "sprite-button", handlers = "preset.delete", style = "tool_button_red", sprite = "utility/trash"},
                 }}
     end,
-    preset_rows = function(presets)
+    preset_rows = function(presets, selected)
         local preset_rows = {}
         local i = 1
         for name, _ in pairs(presets) do
-            preset_rows[i] = gui.templates.preset_row(name)
+            preset_rows[i] = gui.templates.preset_row(name, selected)
             i = i +1
         end
         return preset_rows
@@ -223,7 +223,7 @@ mi_gui.handlers = {
     },
     main = {
         apply_changes = {
-            on_gui_click = function(e)
+            on_gui_click = function(e, keep_open)
                 e.pdata.config = table.deep_copy(e.pdata.config_tmp)
                 local config_by_entity = {}
                 for _, config in pairs(e.pdata.config) do
@@ -234,7 +234,9 @@ mi_gui.handlers = {
                 end
                 e.pdata.config_by_entity = config_by_entity
                 --log(serpent.block(config_by_entity))
-                mi_gui.close(e)
+                if not keep_open then
+                    mi_gui.close(e)
+                end
             end,
         },
         clear_all = {
@@ -359,7 +361,9 @@ mi_gui.handlers = {
             on_gui_click = function(e)
                 local textfield = e.pdata.gui.presets.save.textfield
                 local name = textfield.text
-                mi_gui.add_preset(e.player, e.pdata, name, e.pdata.config_tmp, textfield)
+                if mi_gui.add_preset(e.player, e.pdata, name, e.pdata.config_tmp, textfield) then
+                    mi_gui.update_presets(e.pdata, name)
+                end
             end
         },
         textfield = {
@@ -428,8 +432,12 @@ mi_gui.handlers = {
                 --TODO save the last loaded/saved preset somewhere to fill the textfield
                 gui_elements.presets.save.textfield.text = name or ""
 
-                --mi_gui.update_contents(pdata, true)
-                gui.handlers.main.apply_changes.on_gui_click(e)
+                local keep_open = not e.player.mod_settings["module_inserter_close_after_load"].value
+                gui.handlers.main.apply_changes.on_gui_click(e, keep_open)
+                if keep_open then
+                    mi_gui.update_contents(pdata, true)
+                    mi_gui.update_presets(pdata, name)
+                end
                 pdata.last_preset = name
                 --mi_gui.close(player, pdata)
                 e.player.print{"module-inserter-storage-loaded", name}
@@ -527,6 +535,7 @@ function mi_gui.create_main_button(player, pdata)
         pdata.gui.main_button = button
         gui.update_filters("mod_gui_button", player.index, {pdata.gui.main_button.index}, "add")
     end
+    pdata.gui.main_button.visible = not player.mod_settings["module_inserter_hide_button"].value
 end
 
 function mi_gui.create(e)
@@ -586,7 +595,7 @@ function mi_gui.create(e)
                             }},
                             {type = "frame", style = "deep_frame_in_shallow_frame", style_mods = {minimal_width = 250}, children = {
                                 {type = "scroll-pane",style="mi_naked_scroll_pane", save_as = "presets.scroll_pane", style_mods = {horizontally_stretchable = true},
-                                    children = gui.templates.preset_rows(pdata.storage)
+                                    children = gui.templates.preset_rows(pdata.storage, pdata.last_preset)
                                 }
                             }}
                         }}
@@ -737,12 +746,24 @@ function mi_gui.add_preset(player, pdata, name, config, textfield)
         else
             pdata.storage[name] = table.deep_copy(config)
             player.print{"module-inserter-storage-updated", name}
-            return
+            return true
         end
     end
 
     pdata.storage[name] = table.deep_copy(config)
     gui.build(gui_elements.presets.scroll_pane, {gui.templates.preset_row(name)})
+    return true
+end
+
+function mi_gui.update_presets(pdata, selected_preset)
+    for _, preset_flow in pairs(pdata.gui.presets.scroll_pane.children) do
+        local preset = preset_flow.children[1]
+        if preset.caption == selected_preset then
+            preset.style = "mi_preset_button_selected"
+        else
+            preset.style = "mi_preset_button"
+        end
+    end
 end
 
 function mi_gui.destroy(e)

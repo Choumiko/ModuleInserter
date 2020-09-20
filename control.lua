@@ -605,6 +605,16 @@ local migrations = {
             end
         end
     end,
+    ["5.1.8"] = function()
+        for pi, pdata in pairs(global._pdata) do
+            local player = game.get_player(pi)
+            if player and pdata.gui.main_button and pdata.gui.main_button.valid then
+                pdata.gui.main_button.visible = not player.mod_settings["module_inserter_hide_button"].value
+            elseif not player then
+                global._pdata[pi] = nil
+            end
+        end
+    end,
 }
 
 event.on_configuration_changed(function(e)
@@ -626,6 +636,10 @@ mi_gui.register_handlers()
 
 event.on_player_created(function(e)
     init_player(e.player_index)
+end)
+
+event.on_player_removed(function(e)
+    global._pdata[e.player_index] = nil
 end)
 
 event.on_runtime_mod_setting_changed(function(e)

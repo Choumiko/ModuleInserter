@@ -2,6 +2,10 @@
 Version: 5.1.8
 Date: ????
   Changes:
+    - Added mod setting to keep the gui open after loading a preset
+    - Highlight the button of the last loaded preset.
+  Bugfixes:
+    - Fixed the button showing up when starting a new game even when "Hide button" is enabled
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.7
 Date: 2020-09-15
