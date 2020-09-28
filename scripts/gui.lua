@@ -109,11 +109,11 @@ end
 local mi_gui = {}
 
 function mi_gui.register_handlers()
-  for name, id in pairs(defines.events) do
-    if string.sub(name, 1, 6) == "on_gui" then
-      script.on_event(id, function(e) mi_gui.dispatch_handlers(e) end)
+    for name, id in pairs(defines.events) do
+        if string.sub(name, 1, 6) == "on_gui" then
+            script.on_event(id, mi_gui.dispatch_handlers)
+        end
     end
-  end
 end
 
 function mi_gui.dispatch_handlers(e)
@@ -215,309 +215,6 @@ mi_gui.templates = {
 
 gui.add_templates(mi_gui.templates)
 
-mi_gui.handlers = {
-    mod_gui_button = {
-        on_gui_click = function(e)
-            mi_gui.toggle(e)
-        end,
-    },
-    main = {
-        apply_changes = {
-            on_gui_click = function(e, keep_open)
-                e.pdata.config = table.deep_copy(e.pdata.config_tmp)
-                local config_by_entity = {}
-                for _, config in pairs(e.pdata.config) do
-                    if config.from then
-                        config_by_entity[config.from] = config_by_entity[config.from] or {}
-                        config_by_entity[config.from][table_size(config_by_entity[config.from])+1] = {to = config.to, cTable = config.cTable, limitations = config.limitations}
-                    end
-                end
-                e.pdata.config_by_entity = config_by_entity
-                --log(serpent.block(config_by_entity))
-                if not keep_open then
-                    mi_gui.close(e)
-                end
-            end,
-        },
-        clear_all = {
-            on_gui_click = function(e)
-                local tmp = {}
-                for i = 1, START_SIZE do
-                    tmp[i] = {cTable = {}, to = {}}
-                end
-                e.pdata.config_tmp = tmp
-                mi_gui.update_contents(e.pdata)
-            end,
-        },
-        close_button = {
-            on_gui_click = function(e)
-                mi_gui.close(e)
-            end
-        },
-        choose_assembler = {
-            on_gui_elem_changed = function(e)
-                local pdata = e.pdata
-                local config_tmp = pdata.config_tmp
-                local config_rows = pdata.gui.main.config_rows
-                if not (config_rows and config_rows.valid) then return end
-                local index = tonumber(e.element.parent.name)
-                local element = e.element
-                local elem_value = element.elem_value
-
-                if elem_value == config_tmp[index].from then
-                    return
-                end
-
-                local c = table_size(config_tmp)
-
-                if not elem_value then
-                    config_tmp[index] = {cTable = {}, to = {}}
-                    mi_gui.update_modules(config_rows.children[index])
-                    mi_gui.shrink_rows(config_rows, c, config_tmp)
-                    return
-                end
-
-                element.tooltip = game.entity_prototypes[elem_value].localised_name
-                config_tmp[index].from = elem_value
-
-                mi_gui.update_modules(config_rows.children[index], global.nameToSlots[elem_value])
-                if index == c then
-                    mi_gui.extend_rows(config_rows, c, config_tmp)
-                end
-            end,
-        },
-
-        choose_module = {
-            on_gui_elem_changed = function(e)
-                local config_tmp = e.pdata.config_tmp
-                local config_rows = e.pdata.gui.main.config_rows
-                if not (config_rows and config_rows.valid) then return end
-                local index = tonumber(e.element.parent.parent.name)
-                local slot = tonumber(e.element.name)
-
-
-                local config = config_tmp[index]
-                config.to[slot] = e.element.elem_value
-                local entity_proto = config.from and game.entity_prototypes[config.from]
-                if e.element.elem_value then
-                    local proto = game.item_prototypes[e.element.elem_value]
-                    local success = true
-                    if proto and config.from then
-                        local itemEffects = proto.module_effects
-                        if entity_proto and itemEffects then
-                            for name, effect in pairs(itemEffects) do
-                                if effect and effect.bonus ~= 0 and not entity_proto.allowed_effects[name] then
-                                    success = false
-                                    e.player.print({"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name})
-                                    config.to[slot] = nil
-                                    e.element.elem_value = nil
-                                    break
-                                end
-                            end
-                        end
-                        if success then
-                            config.to[slot] = proto.name
-                        end
-                    end
-
-                end
-                if slot == 1 and e.element.elem_value and e.player.mod_settings["module_inserter_fill_all"].value then
-                    for i = 2, entity_proto.module_inventory_size do
-                        config.to[i] = config.to[i] or e.element.elem_value
-                    end
-                    mi_gui.update_modules(config_rows.children[index], entity_proto.module_inventory_size, config.to)
-                end
-                local cTable = {}
-                local prototype, limitations
-                config.limitations = false
-                for _, module in pairs(config.to) do
-                    if module then
-                        prototype = game.item_prototypes[module]
-                        limitations = prototype and prototype.limitations
-                        if limitations and next(limitations) then
-                            config.limitations = true
-                        end
-                        cTable[module] = (cTable[module] or 0) + 1
-                    end
-                end
-                config.cTable = cTable
-            end
-        },
-        destroy_tool = {
-            on_gui_click = function(e)
-                e.player.get_main_inventory().remove{name = "module-inserter", count = 1}
-                mi_gui.close(e)
-            end
-        },
-
-        window = {
-            on_gui_closed = function(e)
-                mi_gui.close(e)
-            end
-        }
-    },
-    presets = {
-        save = {
-            on_gui_click = function(e)
-                local textfield = e.pdata.gui.presets.save.textfield
-                local name = textfield.text
-                if mi_gui.add_preset(e.player, e.pdata, name, e.pdata.config_tmp, textfield) then
-                    mi_gui.update_presets(e.pdata, name)
-                end
-            end
-        },
-        textfield = {
-            on_gui_click = function(e)
-                e.element.select_all()
-                e.element.focus()
-            end
-        },
-        import = {
-            on_gui_click = function(e)
-                local stack = e.player.cursor_stack
-                if stack and stack.valid and stack.valid_for_read and (stack.type == "blueprint" or stack.type == "blueprint-book") then
-                    local player = e.player
-                    local pdata = e.pdata
-                    local result, config, name = import_config(stack.export_stack())
-                    if result ~= 0 then
-                        player.print({"failed-to-import-string", name})
-                        return
-                    end
-                    if name then
-                        mi_gui.add_preset(player, pdata, name, config)
-                    else
-                        for sname, data in pairs(config) do
-                            mi_gui.add_preset(player, pdata, sname, data)
-                        end
-                    end
-                else
-                    mi_gui.create_import_window(e.pdata, e.player)
-                end
-            end
-        },
-        export = {
-            on_gui_click = function(e)
-                local text = export_config(e.pdata.storage)
-                if e.shift then
-                    local stack = e.player.cursor_stack
-                    if stack.valid_for_read then
-                        e.player.print("Click with an empty cursor")
-                        return
-                    else
-                        if not stack.set_stack{name = "blueprint", count = 1} then
-                            e.player.print({"", {"error-while-importing-string"}, " Could not set stack"})
-                            return
-                        end
-                        stack.import_stack(text)
-                    end
-                else
-                    mi_gui.create_import_window(e.pdata, e.player, text)
-                end
-            end
-        }
-    },
-    preset = {
-        load = {
-            on_gui_click = function(e)
-                local name = e.element.caption
-                local pdata = e.pdata
-                local gui_elements = pdata.gui
-
-                local preset = pdata.storage[name]
-                if not preset then return end
-
-                pdata.config_tmp = table.deep_copy(preset)
-                pdata.config = table.deep_copy(preset)
-
-                --TODO save the last loaded/saved preset somewhere to fill the textfield
-                gui_elements.presets.save.textfield.text = name or ""
-
-                local keep_open = not e.player.mod_settings["module_inserter_close_after_load"].value
-                gui.handlers.main.apply_changes.on_gui_click(e, keep_open)
-                if keep_open then
-                    mi_gui.update_contents(pdata, true)
-                    mi_gui.update_presets(pdata, name)
-                end
-                pdata.last_preset = name
-                --mi_gui.close(player, pdata)
-                e.player.print{"module-inserter-storage-loaded", name}
-            end
-        },
-        export = {
-            on_gui_click = function(e)
-                local pdata = e.pdata
-                local name = e.element.parent.children[1].caption
-                local config = pdata.storage[name]
-                if not config or not name or name == "" then
-                    e.player.print("Preset " .. name .. "not found")
-                    return
-                end
-
-                local text = export_config(config, name)
-                if e.shift then
-                    local stack = e.player.cursor_stack
-                    if stack.valid_for_read then
-                        e.player.print("Click with an empty cursor")
-                        return
-                    else
-                        if not stack.set_stack{name = "blueprint", count = 1} then
-                            e.player.print({"", {"error-while-importing-string"}, " Could not set stack"})
-                            return
-                        end
-                        stack.import_stack(text)
-                    end
-                else
-                    mi_gui.create_import_window(pdata, e.player, text)
-                end
-            end
-        },
-        delete = {
-            on_gui_click = function(e)
-                local name = e.element.parent.children[1].caption
-                local pdata = e.pdata
-                local parent = e.element.parent
-                pdata.storage[name] = nil
-                gui.update_filters("preset.delete", e.player_index, {e.element.index}, "remove")
-                gui.update_filters("preset.load", e.player_index, {parent.children[1].index}, "remove")
-                parent.destroy()
-            end
-        },
-    },
-    import = {
-        import_button = {
-            on_gui_click = function(e)
-                local player = e.player
-                local pdata = e.pdata
-                local gui_elements = pdata.gui
-                local text_box = gui_elements.import.window.textbox
-                local result, config, name = import_config(text_box.text)
-                if result ~= 0 then
-                    player.print({"failed-to-import-string", name})
-                    return
-                end
-                if name then
-                    mi_gui.add_preset(player, pdata, name, config)
-                else
-                    for sname, data in pairs(config) do
-                        mi_gui.add_preset(player, pdata, sname, data)
-                    end
-                end
-                gui.handlers.import.close_button.on_gui_click(e)
-            end
-        },
-        close_button = {
-            on_gui_click = function(e)
-                local window = e.pdata.gui.import.window.main
-                gui.update_filters("import", e.player_index, nil, "remove")
-                window.destroy()
-                e.pdata.gui.import = nil
-            end
-        }
-    },
-}
-
-gui.add_handlers(mi_gui.handlers)
-
 function mi_gui.create_main_button(player, pdata)
     local button_flow = mod_gui.get_button_flow(player)
     local button = button_flow.module_inserter_config_button
@@ -559,6 +256,8 @@ function mi_gui.create(e)
                     {type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = {ignored_by_interaction = true}},
                     {type = "sprite-button", style = "frame_action_button_red", sprite = "utility/trash", tooltip = {"module-inserter-destroy"},
                         handlers = "main.destroy_tool"},
+                    {template="frame_action_button", tooltip={"module-inserter-keep-open"}, sprite="mi_pin_white", hovered_sprite="mi_pin_black", clicked_sprite="mi_pin_black",
+                        handlers="main.pin_button", save_as="main.titlebar.pin_button"},
                     {template = "frame_action_button", sprite = "utility/close_white", hovered_sprite = "utility/close_black", clicked_sprite = "utility/close_black",
                         handlers = "main.close_button", save_as = "main.titlebar.close_button"}
                 }},
@@ -779,6 +478,9 @@ function mi_gui.destroy(e)
     if pdata.gui.import and pdata.gui.import.window and pdata.gui.import.window.main and pdata.gui.import.window.main.valid then
         pdata.gui.import.window.main.destroy()
     end
+    if not e.pdata.pinned then
+        e.player.opened = nil
+    end
     pdata.gui.main = nil
     pdata.gui.presets = nil
     pdata.gui.import = nil
@@ -786,15 +488,21 @@ function mi_gui.destroy(e)
 end
 
 function mi_gui.open(e)
-    mi_gui.create(e)
+    --if not e.pdata.gui.main then
+        mi_gui.create(e)
+    --end
     e.pdata.gui_open = true
-    --player.opened = pdata.gui.window
+    if not e.pdata.pinned then
+        e.player.opened = e.pdata.gui.main.window
+    end
 end
 
 function mi_gui.close(e)
     mi_gui.destroy(e)
     e.pdata.gui_open = false
-    --player.opened = nil
+    if not e.pdata.pinned then
+        e.player.opened = nil
+    end
 end
 
 function mi_gui.toggle(e)
@@ -804,5 +512,322 @@ function mi_gui.toggle(e)
         mi_gui.open(e)
     end
 end
+
+mi_gui.handlers = {
+    mod_gui_button = {
+        on_gui_click = mi_gui.toggle
+    },
+    main = {
+        apply_changes = {
+            on_gui_click = function(e, keep_open)
+                e.pdata.config = table.deep_copy(e.pdata.config_tmp)
+                local config_by_entity = {}
+                for _, config in pairs(e.pdata.config) do
+                    if config.from then
+                        config_by_entity[config.from] = config_by_entity[config.from] or {}
+                        config_by_entity[config.from][table_size(config_by_entity[config.from])+1] = {to = config.to, cTable = config.cTable, limitations = config.limitations}
+                    end
+                end
+                e.pdata.config_by_entity = config_by_entity
+                --log(serpent.block(config_by_entity))
+                if not keep_open then
+                    mi_gui.close(e)
+                end
+            end,
+        },
+        clear_all = {
+            on_gui_click = function(e)
+                local tmp = {}
+                for i = 1, START_SIZE do
+                    tmp[i] = {cTable = {}, to = {}}
+                end
+                e.pdata.config_tmp = tmp
+                mi_gui.update_contents(e.pdata)
+            end,
+        },
+        close_button = {
+            on_gui_click = mi_gui.close
+        },
+        pin_button = {
+            on_gui_click = function(e)
+                local pdata = e.pdata
+                if pdata.pinned then
+                    pdata.gui.main.titlebar.pin_button.style = "frame_action_button"
+                    pdata.pinned = false
+                    pdata.gui.main.window.force_auto_center()
+                    e.player.opened = pdata.gui.main.window
+                else
+                    pdata.gui.main.titlebar.pin_button.style = "flib_selected_frame_action_button"
+                    pdata.pinned = true
+                    pdata.gui.main.window.force_auto_center()
+                    e.player.opened = nil
+                end
+            end
+        },
+        choose_assembler = {
+            on_gui_elem_changed = function(e)
+                local pdata = e.pdata
+                local config_tmp = pdata.config_tmp
+                local config_rows = pdata.gui.main.config_rows
+                if not (config_rows and config_rows.valid) then return end
+                local index = tonumber(e.element.parent.name)
+                local element = e.element
+                local elem_value = element.elem_value
+
+                if elem_value == config_tmp[index].from then
+                    return
+                end
+
+                local c = table_size(config_tmp)
+
+                if not elem_value then
+                    config_tmp[index] = {cTable = {}, to = {}}
+                    mi_gui.update_modules(config_rows.children[index])
+                    mi_gui.shrink_rows(config_rows, c, config_tmp)
+                    return
+                end
+
+                element.tooltip = game.entity_prototypes[elem_value].localised_name
+                config_tmp[index].from = elem_value
+
+                mi_gui.update_modules(config_rows.children[index], global.nameToSlots[elem_value])
+                if index == c then
+                    mi_gui.extend_rows(config_rows, c, config_tmp)
+                end
+            end,
+        },
+
+        choose_module = {
+            on_gui_elem_changed = function(e)
+                local config_tmp = e.pdata.config_tmp
+                local config_rows = e.pdata.gui.main.config_rows
+                if not (config_rows and config_rows.valid) then return end
+                local index = tonumber(e.element.parent.parent.name)
+                local slot = tonumber(e.element.name)
+
+
+                local config = config_tmp[index]
+                config.to[slot] = e.element.elem_value
+                local entity_proto = config.from and game.entity_prototypes[config.from]
+                if e.element.elem_value then
+                    local proto = game.item_prototypes[e.element.elem_value]
+                    local success = true
+                    if proto and config.from then
+                        local itemEffects = proto.module_effects
+                        if entity_proto and itemEffects then
+                            for name, effect in pairs(itemEffects) do
+                                if effect and effect.bonus ~= 0 and not entity_proto.allowed_effects[name] then
+                                    success = false
+                                    e.player.print({"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name})
+                                    config.to[slot] = nil
+                                    e.element.elem_value = nil
+                                    break
+                                end
+                            end
+                        end
+                        if success then
+                            config.to[slot] = proto.name
+                        end
+                    end
+
+                end
+                if slot == 1 and e.element.elem_value and e.player.mod_settings["module_inserter_fill_all"].value then
+                    for i = 2, entity_proto.module_inventory_size do
+                        config.to[i] = config.to[i] or e.element.elem_value
+                    end
+                    mi_gui.update_modules(config_rows.children[index], entity_proto.module_inventory_size, config.to)
+                end
+                local cTable = {}
+                local prototype, limitations
+                config.limitations = false
+                for _, module in pairs(config.to) do
+                    if module then
+                        prototype = game.item_prototypes[module]
+                        limitations = prototype and prototype.limitations
+                        if limitations and next(limitations) then
+                            config.limitations = true
+                        end
+                        cTable[module] = (cTable[module] or 0) + 1
+                    end
+                end
+                config.cTable = cTable
+            end
+        },
+        destroy_tool = {
+            on_gui_click = function(e)
+                e.player.get_main_inventory().remove{name = "module-inserter", count = 1}
+                mi_gui.close(e)
+            end
+        },
+
+        window = {
+            on_gui_closed = function(e)
+                if not e.pdata.pinned then
+                    mi_gui.close(e)
+                end
+            end
+        }
+    },
+    presets = {
+        save = {
+            on_gui_click = function(e)
+                local textfield = e.pdata.gui.presets.save.textfield
+                local name = textfield.text
+                if mi_gui.add_preset(e.player, e.pdata, name, e.pdata.config_tmp, textfield) then
+                    mi_gui.update_presets(e.pdata, name)
+                end
+            end
+        },
+        textfield = {
+            on_gui_click = function(e)
+                e.element.select_all()
+                e.element.focus()
+            end
+        },
+        import = {
+            on_gui_click = function(e)
+                local stack = e.player.cursor_stack
+                if stack and stack.valid and stack.valid_for_read and (stack.type == "blueprint" or stack.type == "blueprint-book") then
+                    local player = e.player
+                    local pdata = e.pdata
+                    local result, config, name = import_config(stack.export_stack())
+                    if result ~= 0 then
+                        player.print({"failed-to-import-string", name})
+                        return
+                    end
+                    if name then
+                        mi_gui.add_preset(player, pdata, name, config)
+                    else
+                        for sname, data in pairs(config) do
+                            mi_gui.add_preset(player, pdata, sname, data)
+                        end
+                    end
+                else
+                    mi_gui.create_import_window(e.pdata, e.player)
+                end
+            end
+        },
+        export = {
+            on_gui_click = function(e)
+                local text = export_config(e.pdata.storage)
+                if e.shift then
+                    local stack = e.player.cursor_stack
+                    if stack.valid_for_read then
+                        e.player.print("Click with an empty cursor")
+                        return
+                    else
+                        if not stack.set_stack{name = "blueprint", count = 1} then
+                            e.player.print({"", {"error-while-importing-string"}, " Could not set stack"})
+                            return
+                        end
+                        stack.import_stack(text)
+                    end
+                else
+                    mi_gui.create_import_window(e.pdata, e.player, text)
+                end
+            end
+        }
+    },
+    preset = {
+        load = {
+            on_gui_click = function(e)
+                local name = e.element.caption
+                local pdata = e.pdata
+                local gui_elements = pdata.gui
+
+                local preset = pdata.storage[name]
+                if not preset then return end
+
+                pdata.config_tmp = table.deep_copy(preset)
+                pdata.config = table.deep_copy(preset)
+
+                --TODO save the last loaded/saved preset somewhere to fill the textfield
+                gui_elements.presets.save.textfield.text = name or ""
+
+                local keep_open = not e.player.mod_settings["module_inserter_close_after_load"].value
+                gui.handlers.main.apply_changes.on_gui_click(e, keep_open)
+                if keep_open then
+                    mi_gui.update_contents(pdata, true)
+                    mi_gui.update_presets(pdata, name)
+                end
+                pdata.last_preset = name
+                --mi_gui.close(player, pdata)
+                e.player.print{"module-inserter-storage-loaded", name}
+            end
+        },
+        export = {
+            on_gui_click = function(e)
+                local pdata = e.pdata
+                local name = e.element.parent.children[1].caption
+                local config = pdata.storage[name]
+                if not config or not name or name == "" then
+                    e.player.print("Preset " .. name .. "not found")
+                    return
+                end
+
+                local text = export_config(config, name)
+                if e.shift then
+                    local stack = e.player.cursor_stack
+                    if stack.valid_for_read then
+                        e.player.print("Click with an empty cursor")
+                        return
+                    else
+                        if not stack.set_stack{name = "blueprint", count = 1} then
+                            e.player.print({"", {"error-while-importing-string"}, " Could not set stack"})
+                            return
+                        end
+                        stack.import_stack(text)
+                    end
+                else
+                    mi_gui.create_import_window(pdata, e.player, text)
+                end
+            end
+        },
+        delete = {
+            on_gui_click = function(e)
+                local name = e.element.parent.children[1].caption
+                local pdata = e.pdata
+                local parent = e.element.parent
+                pdata.storage[name] = nil
+                gui.update_filters("preset.delete", e.player_index, {e.element.index}, "remove")
+                gui.update_filters("preset.load", e.player_index, {parent.children[1].index}, "remove")
+                parent.destroy()
+            end
+        },
+    },
+    import = {
+        import_button = {
+            on_gui_click = function(e)
+                local player = e.player
+                local pdata = e.pdata
+                local gui_elements = pdata.gui
+                local text_box = gui_elements.import.window.textbox
+                local result, config, name = import_config(text_box.text)
+                if result ~= 0 then
+                    player.print({"failed-to-import-string", name})
+                    return
+                end
+                if name then
+                    mi_gui.add_preset(player, pdata, name, config)
+                else
+                    for sname, data in pairs(config) do
+                        mi_gui.add_preset(player, pdata, sname, data)
+                    end
+                end
+                gui.handlers.import.close_button.on_gui_click(e)
+            end
+        },
+        close_button = {
+            on_gui_click = function(e)
+                local window = e.pdata.gui.import.window.main
+                gui.update_filters("import", e.player_index, nil, "remove")
+                window.destroy()
+                e.pdata.gui.import = nil
+            end
+        }
+    },
+}
+
+gui.add_handlers(mi_gui.handlers)
 
 return mi_gui

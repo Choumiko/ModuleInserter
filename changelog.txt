@@ -2,6 +2,8 @@
 Version: 5.1.9
 Date: ????
   Changes:
+    - Pressing E or Escape closes the gui
+    - Added a pin button to the gui, to keep it open when pressing E/Escape
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.8
 Date: 2020-09-20

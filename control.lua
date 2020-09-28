@@ -615,6 +615,11 @@ local migrations = {
             end
         end
     end,
+    ["5.1.9"] = function()
+        for _, pdata in pairs(global._pdata) do
+            pdata.pinned = false
+        end
+    end,
 }
 
 event.on_configuration_changed(function(e)
@@ -640,6 +645,7 @@ end)
 
 event.on_player_removed(function(e)
     global._pdata[e.player_index] = nil
+    gui.remove_player_filters(e.player_index)
 end)
 
 event.on_runtime_mod_setting_changed(function(e)
