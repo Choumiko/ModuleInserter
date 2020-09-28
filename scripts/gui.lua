@@ -589,6 +589,7 @@ mi_gui.handlers = {
 
                 if not elem_value then
                     config_tmp[index] = {cTable = {}, to = {}}
+                    element.tooltip = {"module-inserter-choose-assembler"}
                     mi_gui.update_modules(config_rows.children[index])
                     mi_gui.shrink_rows(config_rows, c, config_tmp)
                     return
@@ -642,8 +643,8 @@ mi_gui.handlers = {
                     for i = 2, entity_proto.module_inventory_size do
                         config.to[i] = config.to[i] or e.element.elem_value
                     end
-                    mi_gui.update_modules(config_rows.children[index], entity_proto.module_inventory_size, config.to)
                 end
+                mi_gui.update_modules(config_rows.children[index], entity_proto.module_inventory_size, config.to)
                 local cTable = {}
                 local prototype, limitations
                 config.limitations = false
