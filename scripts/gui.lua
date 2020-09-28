@@ -235,9 +235,11 @@ function mi_gui.create_main_button(player, pdata)
     pdata.gui.main_button.visible = not player.mod_settings["module_inserter_hide_button"].value
 end
 
-function mi_gui.create(e)
-    local pdata = e.pdata
-    local player = e.player
+function mi_gui.create(player_index)
+    local pdata = global._pdata[player_index]
+    local player = game.get_player(player_index)
+    if not player or not pdata then return end
+
     pdata.config_tmp = table.deep_copy(pdata.config)
     local config_tmp = pdata.config_tmp
 
@@ -307,6 +309,7 @@ function mi_gui.create(e)
     gui_data.main.window.force_auto_center()
     pdata.gui = gui_data
     mi_gui.update_contents(pdata)
+    gui_data.main.window.visible = false
 end
 
 function mi_gui.create_import_window(pdata, player, bp_string)
@@ -488,17 +491,21 @@ function mi_gui.destroy(e)
 end
 
 function mi_gui.open(e)
-    --if not e.pdata.gui.main then
-        mi_gui.create(e)
-    --end
+    local window = e.pdata.gui.main.window
+    if window and window.valid then
+        window.visible = true
+    end
     e.pdata.gui_open = true
     if not e.pdata.pinned then
-        e.player.opened = e.pdata.gui.main.window
+        e.player.opened = window
     end
 end
 
 function mi_gui.close(e)
-    mi_gui.destroy(e)
+    local window = e.pdata.gui.main.window
+    if window and window.valid then
+        window.visible = false
+    end
     e.pdata.gui_open = false
     if not e.pdata.pinned then
         e.player.opened = nil
@@ -559,7 +566,7 @@ mi_gui.handlers = {
                 else
                     pdata.gui.main.titlebar.pin_button.style = "flib_selected_frame_action_button"
                     pdata.pinned = true
-                    pdata.gui.main.window.force_auto_center()
+                    pdata.gui.main.window.auto_center = false
                     e.player.opened = nil
                 end
             end

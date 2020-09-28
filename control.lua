@@ -502,6 +502,7 @@ local function init_player(i)
         gui = pdata.gui or {},
     }
     mi_gui.create_main_button(game.get_player(i), global._pdata[i])
+    mi_gui.create(i)
 end
 
 local function init_players()
@@ -616,8 +617,11 @@ local migrations = {
         end
     end,
     ["5.1.9"] = function()
-        for _, pdata in pairs(global._pdata) do
+        for pi, pdata in pairs(global._pdata) do
             pdata.pinned = false
+            local event_data = {pdata = pdata, player = game.get_player(pi), player_index = pi}
+            mi_gui.destroy(event_data)
+            mi_gui.create(pi)
         end
     end,
 }
