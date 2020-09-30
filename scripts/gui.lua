@@ -251,7 +251,7 @@ function mi_gui.create(player_index)
         end
     end
     local gui_data = mi_gui.build(player.gui.screen,{
-        {type = "frame", style = "outer_frame", direction = "vertical", handlers = "main.window", save_as = "main.window", style_mods = {maximal_height = 650}, children = {
+        {type = "frame", style = "outer_frame", handlers = "main.window", save_as = "main.window", style_mods = {maximal_height = 650}, children = {
             {type = "frame", style = "inner_frame_in_outer_frame", direction = "vertical", children = {
                 {type = "flow", save_as = "main.titlebar.flow", children = {
                     {type = "label", style = "frame_title", caption = "Module Inserter", elem_mods = {ignored_by_interaction = true}},
@@ -260,6 +260,8 @@ function mi_gui.create(player_index)
                         handlers = "main.destroy_tool"},
                     {template="frame_action_button", tooltip={"module-inserter-keep-open"}, sprite="mi_pin_white", hovered_sprite="mi_pin_black", clicked_sprite="mi_pin_black",
                         handlers="main.pin_button", save_as="main.titlebar.pin_button"},
+                    -- {template="frame_action_button", tooltip={"rb-gui.settings"}, sprite="mi_settings_white", hovered_sprite="mi_settings_black",
+                    --     clicked_sprite="mi_settings_black", handlers="main.settings_button", save_as="main.titlebar.settings_button"},
                     {template = "frame_action_button", sprite = "utility/close_white", hovered_sprite = "utility/close_black", clicked_sprite = "utility/close_black",
                         handlers = "main.close_button", save_as = "main.titlebar.close_button"}
                 }},
@@ -302,7 +304,22 @@ function mi_gui.create(player_index)
                         }}
                     }}
                 }}
-            }}
+            }},
+            -- settings window
+            -- {type="frame", style="inner_frame_in_outer_frame", direction="vertical", elem_mods={visible=true}, save_as="settings.window", children={
+            --     {type="flow", save_as="settings.titlebar_flow", children={
+            --         {type="label", style="frame_title", caption={"gui-menu.settings"}, elem_mods={ignored_by_interaction=true}},
+            --         {type="empty-widget", style="flib_dialog_titlebar_drag_handle", elem_mods={ignored_by_interaction=true}},
+            --     }},
+            --     {type="frame", style="inside_shallow_frame", children={
+            --         {type="scroll-pane", style="rb_settings_content_scroll_pane", direction="vertical", children={
+            --             {type="frame", style="rb_settings_category_frame", direction="vertical", children={
+            --                 {type="label", style="caption_label", caption="Test caption"},
+            --                 {type="checkbox", name="rb_setting__test", caption="test setting", state=true}
+            --             }}
+            --         }}
+            --     }}
+            -- }}
         }}
     }, pdata.gui)
     gui_data.main.titlebar.flow.drag_target = gui_data.main.window
@@ -571,6 +588,11 @@ mi_gui.handlers = {
                 end
             end
         },
+        -- settings_button = {
+        --     on_gui_click = function(e)
+
+        --     end
+        -- },
         choose_assembler = {
             on_gui_elem_changed = function(e)
                 local pdata = e.pdata
@@ -753,11 +775,10 @@ mi_gui.handlers = {
                 gui_elements.presets.save.textfield.text = name or ""
 
                 local keep_open = not e.player.mod_settings["module_inserter_close_after_load"].value
+                mi_gui.update_contents(pdata, true)
+                mi_gui.update_presets(pdata, name)
+
                 gui.handlers.main.apply_changes.on_gui_click(e, keep_open)
-                if keep_open then
-                    mi_gui.update_contents(pdata, true)
-                    mi_gui.update_presets(pdata, name)
-                end
                 pdata.last_preset = name
                 --mi_gui.close(player, pdata)
                 e.player.print{"module-inserter-storage-loaded", name}
