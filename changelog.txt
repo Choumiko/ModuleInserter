@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.12
-Date: ????
+Date: 2020-10-17
   Changes:
     - Added an entry when an entity is removed from AutoTrash configurations due to mod changes
   Bugfixes:
