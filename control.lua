@@ -453,6 +453,7 @@ local function remove_invalid_items()
     local function _remove(tbl)
         for _, config in pairs(tbl) do
             if (config.from or config.from == false) and not entities[config.from] then
+                log("Module Inserter: Removed configuration for " ..config.from)
                 config.from = nil
                 config.to = {}
                 config.cTable = {}
@@ -462,6 +463,7 @@ local function remove_invalid_items()
                 if m and not items[m] then
                     config.to[k] = nil
                     config.cTable[m] = nil
+                    log("Module Inserter: Removed module " ..config.from .. " from all configurations")
                 end
                 if global.restricted_modules[m] then
                     config.limitations = true
@@ -627,14 +629,14 @@ local migrations = {
 }
 
 event.on_configuration_changed(function(e)
+    create_lookup_tables()
+    remove_invalid_items()
     if migration.on_config_changed(e, migrations) then
         if not global.__flib then
             gui.init()
         end
         gui.check_filter_validity()
     end
-    create_lookup_tables()
-    remove_invalid_items()
     conditional_events(true)
 end)
 
