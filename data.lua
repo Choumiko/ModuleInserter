@@ -18,8 +18,7 @@ data:extend({
         type = 'custom-input',
         name = 'get-module-inserter',
         key_sequence = "",
-        action = 'create-blueprint-item',
-        item_to_create = 'module-inserter',
+        action = 'lua',
         consuming = 'none'
     },
     {
@@ -33,8 +32,7 @@ data:extend({
         type = 'shortcut',
         name = 'module-inserter',
         --order = "a[yarm]",
-        action = 'create-blueprint-item',
-        item_to_create = 'module-inserter',
+        action = 'lua',
         style = 'green',
         icon = {
             filename = "__ModuleInserter__/graphics/new-module-inserter-x32-white.png",

@@ -2,11 +2,12 @@
 Version: 5.1.13
 Date: ????
   Changes:
+    - Using the shortcut or hotkey to get a module inserter takes one from the inventory before creating a new one
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.12
 Date: 2020-10-17
   Changes:
-    - Added an entry when an entity is removed from AutoTrash configurations due to mod changes
+    - Added an entry when an entity is removed from ModuleInserter configurations due to mod changes
   Bugfixes:
     - Fixed crash when updating to a new version and at the same time another mod changes/removes entities
 ---------------------------------------------------------------------------------------------------

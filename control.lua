@@ -58,6 +58,26 @@ event.register("toggle-module-inserter", function(e)
     mi_gui.toggle(e)
 end)
 
+local function get_module_inserter(e)
+    local player = game.get_player(e.player_index)
+    local inv = player.get_main_inventory()
+    local mi = inv.find_item_stack("module-inserter")
+    if mi then
+        mi.swap_stack(player.cursor_stack)
+    else
+        player.clean_cursor()
+        player.cursor_stack.set_stack{name = "module-inserter", count = 1}
+    end
+end
+
+event.register("get-module-inserter", get_module_inserter)
+
+event.on_lua_shortcut(function(e)
+    if e.prototype_name == "module-inserter" then
+        get_module_inserter(e)
+    end
+end)
+
 local function drop_module(entity, name, count, module_inventory, chest, create_entity)
     if not (chest and chest.valid) then
         chest = create_entity{
@@ -450,10 +470,12 @@ end
 local function remove_invalid_items()
     local items = game.item_prototypes
     local entities = game.entity_prototypes
+    local removed_entities = {}
+    local removed_modules = {}
     local function _remove(tbl)
         for _, config in pairs(tbl) do
             if (config.from or config.from == false) and not entities[config.from] then
-                log("Module Inserter: Removed configuration for " ..config.from)
+                removed_entities[config.from] = true
                 config.from = nil
                 config.to = {}
                 config.cTable = {}
@@ -463,7 +485,7 @@ local function remove_invalid_items()
                 if m and not items[m] then
                     config.to[k] = nil
                     config.cTable[m] = nil
-                    log("Module Inserter: Removed module " ..config.from .. " from all configurations")
+                    removed_modules[config.from] = true
                 end
                 if global.restricted_modules[m] then
                     config.limitations = true
@@ -479,6 +501,12 @@ local function remove_invalid_items()
         for _, preset in pairs(pdata.storage) do
             _remove(preset)
         end
+    end
+    for k in pairs(removed_entities) do
+        log("Module Inserter: Removed configuration for " ..k)
+    end
+    for k in pairs(removed_modules) do
+        log("Module Inserter: Removed module " .. k .. " from all configurations")
     end
 end
 
@@ -532,7 +560,7 @@ local migrations = {
         init_global()
         init_players()
         for _, player in pairs(game.players) do
-            if player.gui.left.mod_gui_frame_flow and player.gui.left.mod_gui_frame_flow then
+            if player.gui.left.mod_gui_frame_flow and player.gui.left.mod_gui_frame_flow.valid then
                 for _, egui in pairs(player.gui.left.mod_gui_frame_flow.children) do
                     if egui.get_mod() == "ModuleInserter" then
                         egui.destroy()
