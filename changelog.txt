@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.1.13
-Date: ????
+Date: 2020-10-19
   Changes:
     - Using the shortcut or hotkey to get a module inserter takes one from the inventory before creating a new one
 ---------------------------------------------------------------------------------------------------
