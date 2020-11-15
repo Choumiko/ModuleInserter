@@ -485,9 +485,8 @@ function mi_gui.update_presets(pdata, selected_preset)
     end
 end
 
-function mi_gui.destroy(e)
-    local pdata = e.pdata
-    local player_index = e.player_index
+function mi_gui.destroy(pdata, player)
+    local player_index = player.index
     gui.update_filters("main", player_index, nil, "remove")
     gui.update_filters("preset", player_index, nil, "remove")
     gui.update_filters("presets", player_index, nil, "remove")
@@ -498,8 +497,8 @@ function mi_gui.destroy(e)
     if pdata.gui.import and pdata.gui.import.window and pdata.gui.import.window.main and pdata.gui.import.window.main.valid then
         pdata.gui.import.window.main.destroy()
     end
-    if not e.pdata.pinned then
-        e.player.opened = nil
+    if not pdata.pinned then
+        player.opened = nil
     end
     pdata.gui.main = nil
     pdata.gui.presets = nil

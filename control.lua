@@ -647,11 +647,8 @@ local migrations = {
         end
     end,
     ["5.1.9"] = function()
-        for pi, pdata in pairs(global._pdata) do
+        for _, pdata in pairs(global._pdata) do
             pdata.pinned = false
-            local event_data = {pdata = pdata, player = game.get_player(pi), player_index = pi}
-            mi_gui.destroy(event_data)
-            mi_gui.create(pi)
         end
     end,
 }
@@ -664,6 +661,11 @@ event.on_configuration_changed(function(e)
             gui.init()
         end
         gui.check_filter_validity()
+        for pi, pdata in pairs(global._pdata) do
+            mi_gui.destroy(pdata, game.get_player(pi))
+            mi_gui.create(pi)
+        end
+
     end
     conditional_events(true)
 end)
