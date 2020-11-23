@@ -65,7 +65,7 @@ local function get_module_inserter(e)
     if mi then
         mi.swap_stack(player.cursor_stack)
     else
-        player.clean_cursor()
+        player.clear_cursor()
         player.cursor_stack.set_stack{name = "module-inserter", count = 1}
     end
 end
