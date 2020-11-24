@@ -1,5 +1,5 @@
 local event = require("__flib__.event")
-local gui = require("__flib__.gui")
+local gui = require("__flib__.gui-beta")
 local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
 local table = require("__flib__.table")
@@ -516,10 +516,6 @@ local function init_global()
     global.nameToSlots = global.nameToSlots or {}
     global.restricted_modules = global.restricted_modules or {}
     global._pdata = global._pdata or {}
-    if not (global.__flib and global.__flib.gui) then
-        gui.init()
-        gui.build_lookup_tables()
-    end
 end
 
 local function init_player(i)
@@ -542,15 +538,12 @@ local function init_players()
 end
 
 event.on_init(function()
-    gui.init()
-    gui.build_lookup_tables()
     create_lookup_tables()
     init_global()
     init_players()
 end)
 
 event.on_load(function()
-    gui.build_lookup_tables()
     conditional_events()
 end)
 
@@ -570,11 +563,9 @@ local migrations = {
         end
     end,
     ["5.0.9"] = function()
-        gui.init()
-        gui.build_lookup_tables()
         init_players()
         local gui_e, pdata
-        for i, player in pairs(game.players) do
+        for i, _ in pairs(game.players) do
             pdata = global._pdata[i]
             gui_e = pdata.gui_elements
             if gui_e then
@@ -587,12 +578,9 @@ local migrations = {
                 init_player(i)
                 pdata = global._pdata[i]
                 if gui_e.main_button and gui_e.main_button.valid then
-                    gui.update_filters("mod_gui_button", i, {gui_e.main_button.index}, "add")
-                    pdata.gui.main_button = gui_e.main_button
+                    gui_e.main_button.destroy()
                 end
             end
-            mi_gui.create_main_button(player, pdata)
-            gui.update_filters("mod_gui_button", i, {pdata.gui.main_button.index}, "add")
             pdata.last_preset = ""
             local config_by_entity = {}
             for _, config in pairs(pdata.config) do
@@ -640,7 +628,8 @@ local migrations = {
         for pi, pdata in pairs(global._pdata) do
             local player = game.get_player(pi)
             if player and pdata.gui.main_button and pdata.gui.main_button.valid then
-                pdata.gui.main_button.visible = not player.mod_settings["module_inserter_hide_button"].value
+                pdata.gui.main_button.destroy()
+                pdata.gui.main_button = nil
             elseif not player then
                 global._pdata[pi] = nil
             end
@@ -651,16 +640,22 @@ local migrations = {
             pdata.pinned = false
         end
     end,
+    ["5.2.1"] = function()
+        for i, player in pairs(game.players) do
+            local pdata = global._pdata[i]
+            if pdata.gui and pdata.gui.main_button and pdata.gui.main_button.valid then
+                pdata.gui.main_button.destroy()
+                pdata.gui.main_button = nil
+            end
+            mi_gui.create_main_button(player, pdata)
+        end
+    end
 }
 
 event.on_configuration_changed(function(e)
     create_lookup_tables()
     remove_invalid_items()
     if migration.on_config_changed(e, migrations) then
-        if not global.__flib then
-            gui.init()
-        end
-        gui.check_filter_validity()
         for pi, pdata in pairs(global._pdata) do
             mi_gui.destroy(pdata, game.get_player(pi))
             mi_gui.create(pi)
@@ -673,7 +668,24 @@ end)
 event.on_player_selected_area(on_player_selected_area)
 event.on_player_alt_selected_area(on_player_alt_selected_area)
 
-mi_gui.register_handlers()
+gui.hook_events(function(e)
+    local msg = gui.read_action(e)
+    if msg then
+        e.player = game.get_player(e.player_index)
+        e.pdata = global._pdata[e.player_index]
+        local action = msg.action
+        local handler = mi_gui.handlers[msg.gui][action]
+        if handler then
+            handler(e)
+        else
+            log("e")
+        end
+    elseif e.name == defines.events.on_gui_opened then
+
+    elseif e.name == defines.events.on_gui_closed then
+
+    end
+end)
 
 event.on_player_created(function(e)
     init_player(e.player_index)
@@ -681,16 +693,13 @@ end)
 
 event.on_player_removed(function(e)
     global._pdata[e.player_index] = nil
-    gui.remove_player_filters(e.player_index)
 end)
 
 event.on_runtime_mod_setting_changed(function(e)
     if e.player_index and e.setting == "module_inserter_hide_button" then
         local pdata = global._pdata[e.player_index]
         local player = game.get_player(e.player_index)
-        if pdata.gui.main_button and pdata.gui.main_button.valid then
-            pdata.gui.main_button.visible = not player.mod_settings["module_inserter_hide_button"].value
-        end
+        mi_gui.create_main_button(player, pdata)
     end
 end)
 
