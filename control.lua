@@ -673,17 +673,12 @@ gui.hook_events(function(e)
     if msg then
         e.player = game.get_player(e.player_index)
         e.pdata = global._pdata[e.player_index]
-        local action = msg.action
-        local handler = mi_gui.handlers[msg.gui][action]
+        local handler = mi_gui.handlers[msg.gui][msg.action]
         if handler then
             handler(e)
         else
-            log("e")
+            e.player.print("Unhandled gui event: " .. serpent.line(msg))
         end
-    elseif e.name == defines.events.on_gui_opened then
-
-    elseif e.name == defines.events.on_gui_closed then
-
     end
 end)
 
