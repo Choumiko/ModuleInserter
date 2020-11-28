@@ -1,5 +1,6 @@
 local event = require("__flib__.event")
 local gui = require("__flib__.gui-beta")
+local mod_gui = require("__core__.lualib.mod-gui")
 local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
 local table = require("__flib__.table")
@@ -527,7 +528,7 @@ local function init_player(i)
         storage = pdata.storage or {},
         gui = pdata.gui or {},
     }
-    mi_gui.create_main_button(game.get_player(i), global._pdata[i])
+    mi_gui.update_main_button(game.get_player(i))
     mi_gui.create(i)
 end
 
@@ -628,7 +629,6 @@ local migrations = {
         for pi, pdata in pairs(global._pdata) do
             local player = game.get_player(pi)
             if player and pdata.gui.main_button and pdata.gui.main_button.valid then
-                pdata.gui.main_button.destroy()
                 pdata.gui.main_button = nil
             elseif not player then
                 global._pdata[pi] = nil
@@ -643,13 +643,18 @@ local migrations = {
     ["5.2.1"] = function()
         for i, player in pairs(game.players) do
             local pdata = global._pdata[i]
-            if pdata.gui and pdata.gui.main_button and pdata.gui.main_button.valid then
-                pdata.gui.main_button.destroy()
+            if pdata and pdata.gui then
                 pdata.gui.main_button = nil
             end
-            mi_gui.create_main_button(player, pdata)
+            local button_flow = mod_gui.get_button_flow(player)
+            local button = button_flow.module_inserter_config_button
+            if button then
+                gui.update_tags(button, {flib = {on_click = {gui = "mod_gui_button", action = "toggle"}}})
+                button.style = mod_gui.button_style
+            end
+            mi_gui.update_main_button(player)
         end
-    end
+    end,
 }
 
 event.on_configuration_changed(function(e)
@@ -694,7 +699,7 @@ event.on_runtime_mod_setting_changed(function(e)
     if e.player_index and e.setting == "module_inserter_hide_button" then
         local pdata = global._pdata[e.player_index]
         local player = game.get_player(e.player_index)
-        mi_gui.create_main_button(player, pdata)
+        mi_gui.update_main_button(player)
     end
 end)
 

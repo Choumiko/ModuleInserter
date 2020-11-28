@@ -211,28 +211,26 @@ mi_gui.templates = {
     end,
 }
 
-function mi_gui.create_main_button(player, pdata)
+function mi_gui.update_main_button(player)
     local button_flow = mod_gui.get_button_flow(player)
     local button = button_flow.module_inserter_config_button
+    button = button and button.valid and button
     local visible = not player.mod_settings["module_inserter_hide_button"].value
     if visible then
-        if (not (button and button.valid)) then
+        if (not button) then
             gui.build(button_flow, {{
                 type = "sprite-button",
                 name = "module_inserter_config_button",
                 actions = {on_click = {gui = "mod_gui_button", action = "toggle"}},
-                style = "module-inserter-button",
+                style = mod_gui.button_style,
                 sprite = "technology/modules"
             }})
         else
-            gui.update_tags(button, {flib = {on_click = {gui = "mod_gui_button", action = "toggle"}}})
+            button.visible = true
         end
     else
-        if button and button.valid then
-            button.destroy()
-        end
-        if #button_flow.children == 0 then
-            button_flow.parent.destroy()
+        if button then
+            button.visible = false
         end
     end
 end

@@ -5,12 +5,6 @@ styles["module-inserter-small-button"] = {
     width = 60
 }
 
-styles["module-inserter-button"] =
-    {
-        type = "button_style",
-        parent = "mod_gui_button",
-    }
-
 styles["mi_delete_preset"] = {
     type = "button_style",
     parent = "tool_button_red",
