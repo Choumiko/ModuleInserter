@@ -1,7 +1,11 @@
 ---------------------------------------------------------------------------------------------------
-Version: 5.2.1
+Version: 5.2.2
 Date: ????
   Changes:
+    - Added mod setting to change the background of the button between dark and light grey
+  Bugfixes:
+    - Fixed sprite not updating when toggling the pin button
+    - Fixed window closing when toggling the pin button
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.0
 Date: 2020-11-23
