@@ -248,7 +248,7 @@ function mi_gui.create(player_index)
     end
     local refs = gui.build(player.gui.screen,{
         {type = "frame", style = "outer_frame", style_mods = {maximal_height = 650},
-            actions = {on_closed = {gui = "main", action = "close_pinned"}},
+            actions = {on_closed = {gui = "main", action = "close_window"}},
             ref = {"main", "window"},
             children = {
             {type = "frame", style = "inner_frame_in_outer_frame", direction = "vertical", children = {
@@ -260,7 +260,7 @@ function mi_gui.create(player_index)
                             actions = {on_click = {gui = "main", action = "destroy_tool"},}
                         },
                         {type = "sprite-button", style = "frame_action_button", tooltip={"module-inserter-keep-open"},
-                            sprite="mi_pin_white", hovered_sprite="mi_pin_black", clicked_sprite="mi_pin_black",
+                            sprite = pdata.pinned and "mi_pin_black" or "mi_pin_white", hovered_sprite = "mi_pin_black", clicked_sprite = "mi_pin_black",
                             ref = {"main", "pin_button"},
                             actions = {on_click = {gui = "main", action = "pin"}},
                         },
@@ -524,13 +524,19 @@ function mi_gui.open(e)
 end
 
 function mi_gui.close(e)
-    local window = e.pdata.gui.main.window
+    local pdata = e.pdata
+    if pdata.closing then
+        return
+    end
+    local window = pdata.gui.main.window
     if window and window.valid then
         window.visible = false
     end
-    e.pdata.gui_open = false
-    if not e.pdata.pinned then
+    pdata.gui_open = false
+    if e.player.opened == window then
+        pdata.closing = true
         e.player.opened = nil
+        pdata.closing = nil
     end
 end
 
@@ -570,21 +576,26 @@ mi_gui.handlers = {
             e.pdata.config_tmp = tmp
             mi_gui.update_contents(e.pdata)
         end,
-        close = mi_gui.close,
-        close_pinned = function(e)
+        close_window = function(e)
             if not e.pdata.pinned then
                 mi_gui.close(e)
             end
         end,
+        close = function(e)
+            mi_gui.close(e)
+        end,
         pin = function(e)
             local pdata = e.pdata
+            local pin = pdata.gui.main.pin_button
             if pdata.pinned then
-                pdata.gui.main.pin_button.style = "frame_action_button"
+                pin.sprite = "mi_pin_white"
+                pin.style = "frame_action_button"
                 pdata.pinned = false
                 pdata.gui.main.window.force_auto_center()
                 e.player.opened = pdata.gui.main.window
             else
-                pdata.gui.main.pin_button.style = "flib_selected_frame_action_button"
+                pin.sprite = "mi_pin_black"
+                pin.style = "flib_selected_frame_action_button"
                 pdata.pinned = true
                 pdata.gui.main.window.auto_center = false
                 e.player.opened = nil
