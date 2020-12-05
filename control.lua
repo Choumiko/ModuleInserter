@@ -640,7 +640,7 @@ local migrations = {
             pdata.pinned = false
         end
     end,
-    ["5.2.1"] = function()
+    ["5.2.2"] = function()
         for i, player in pairs(game.players) do
             local pdata = global._pdata[i]
             if pdata and pdata.gui then
@@ -650,7 +650,6 @@ local migrations = {
             local button = button_flow.module_inserter_config_button
             if button then
                 gui.update_tags(button, {flib = {on_click = {gui = "mod_gui_button", action = "toggle"}}})
-                button.style = mod_gui.button_style
             end
             mi_gui.update_main_button(player)
         end
@@ -678,7 +677,8 @@ gui.hook_events(function(e)
     if msg then
         e.player = game.get_player(e.player_index)
         e.pdata = global._pdata[e.player_index]
-        local handler = mi_gui.handlers[msg.gui][msg.action]
+        local gui_handler = mi_gui.handlers[msg.gui]
+        local handler = gui_handler and gui_handler[msg.action]
         if handler then
             handler(e)
         else
@@ -696,10 +696,9 @@ event.on_player_removed(function(e)
 end)
 
 event.on_runtime_mod_setting_changed(function(e)
-    if e.player_index and e.setting == "module_inserter_hide_button" then
-        local pdata = global._pdata[e.player_index]
-        local player = game.get_player(e.player_index)
-        mi_gui.update_main_button(player)
+    if not e.player_index then return end
+    if e.setting == "module_inserter_button_style" or e.setting == "module_inserter_hide_button" then
+        mi_gui.update_main_button(game.get_player(e.player_index))
     end
 end)
 

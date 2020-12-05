@@ -35,5 +35,12 @@ data:extend({
         setting_type = "runtime-per-user",
         default_value = false,
         order = "d"
+    },
+    {
+        type = "string-setting",
+        name = prefix .. "button_style",
+        setting_type = "runtime-per-user",
+        default_value = "mod_gui_button",
+        allowed_values = {"mod_gui_button", "slot_button"}
     }
 })

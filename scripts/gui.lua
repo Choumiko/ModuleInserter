@@ -216,23 +216,19 @@ function mi_gui.update_main_button(player)
     local button = button_flow.module_inserter_config_button
     button = button and button.valid and button
     local visible = not player.mod_settings["module_inserter_hide_button"].value
-    if visible then
-        if (not button) then
-            gui.build(button_flow, {{
-                type = "sprite-button",
-                name = "module_inserter_config_button",
-                actions = {on_click = {gui = "mod_gui_button", action = "toggle"}},
-                style = mod_gui.button_style,
-                sprite = "technology/modules"
-            }})
-        else
-            button.visible = true
-        end
-    else
-        if button then
-            button.visible = false
-        end
+    local style = player.mod_settings["module_inserter_button_style"].value
+    if not button then
+        gui.build(button_flow, {{
+            type = "sprite-button",
+            name = "module_inserter_config_button",
+            actions = {on_click = {gui = "mod_gui_button", action = "toggle"}},
+            style = style,
+            sprite = "technology/modules"
+        }})
+        button = button_flow.module_inserter_config_button
     end
+    button.style = style
+    button.visible = visible
 end
 
 function mi_gui.create(player_index)
@@ -515,9 +511,12 @@ end
 
 function mi_gui.open(e)
     local window = e.pdata.gui.main.window
-    if window and window.valid then
-        window.visible = true
+    if not(window and window.valid) then
+        mi_gui.destroy(e.pdata, e.player)
+        mi_gui.create(e.player_index)
+        window = e.pdata.gui.main.window
     end
+    window.visible = true
     e.pdata.gui_open = true
     if not e.pdata.pinned then
         e.player.opened = window
