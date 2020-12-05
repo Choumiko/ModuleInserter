@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.2
-Date: ????
+Date: 2020-12-05
   Changes:
     - Added mod setting to change the background of the button between dark and light grey
   Bugfixes:
