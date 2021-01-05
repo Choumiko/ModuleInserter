@@ -442,12 +442,17 @@ local function on_player_alt_selected_area(e)
     end
 end
 
+local function se_grounded_entity(name)
+    local result = name:sub(-9) == "-grounded" -- -#"grounded"
+    return result
+end
+
 local function create_lookup_tables()
     global.nameToSlots = {}
     global.module_entities = {}
     local i = 1
     for name, prototype in pairs(game.entity_prototypes) do
-        if prototype.module_inventory_size and prototype.module_inventory_size > 0 then
+        if prototype.module_inventory_size and prototype.module_inventory_size > 0 and not se_grounded_entity(name) then
             global.nameToSlots[name] = prototype.module_inventory_size
             global.module_entities[i] = name
             i = i + 1
