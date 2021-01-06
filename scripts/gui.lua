@@ -166,7 +166,6 @@ mi_gui.templates = {
                         style = name == selected and "mi_preset_button_selected" or "mi_preset_button",
                         actions = {on_click = {gui = "preset", action = "load"}},
                     },
-                    mi_gui.templates.pushers.horizontal,
                     {type = "sprite-button", style = "tool_button", sprite = "utility/export_slot", tooltip = {"module-inserter-export_tt"},
                         actions = {on_click = {gui = "preset", action = "export"}},
                     },
@@ -310,7 +309,7 @@ function mi_gui.create(player_index)
                                 actions = {on_click = {gui = "presets", action = "export"}},
                             },
                         }},
-                        {type = "flow", direction="vertical", style_mods = {padding= 12, top_padding = 8, vertical_spacing = 10}, children = {
+                        {type = "flow", direction="vertical", style_mods = {width = 246, padding= 12, top_padding = 8, vertical_spacing = 10}, children = {
                             {type = "flow", direction = "horizontal", children ={
                                 {type = "textfield", text = pdata.last_preset, style_mods = {width = 150},
                                     ref = {"presets", "textfield"},
@@ -321,9 +320,9 @@ function mi_gui.create(player_index)
                                     actions = {on_click = {gui = "presets", action = "save"}}
                                 },
                             }},
-                            {type = "frame", style = "deep_frame_in_shallow_frame", style_mods = {minimal_width = 250}, children = {
+                            {type = "frame", style = "deep_frame_in_shallow_frame", children = {
                                 {type = "scroll-pane",style="mi_naked_scroll_pane",
-                                    style_mods = {horizontally_stretchable = true, vertically_stretchable = true},
+                                    style_mods = {vertically_stretchable = true, minimal_width = 222},
                                     ref = {"presets", "scroll_pane"},
                                     children = mi_gui.templates.preset_rows(pdata.storage, pdata.last_preset)
                                 }
