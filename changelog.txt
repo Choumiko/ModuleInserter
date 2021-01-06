@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.3
-Date: ????
+Date: 2021-01-06
   Changes:
     - Pressing E while the gui is open and not pinned will apply the changes, to be in line with vanilla behaviour
     - Don't show Space Exploration's grounded versions of buildings in the gui
