@@ -79,6 +79,15 @@ event.on_lua_shortcut(function(e)
     end
 end)
 
+event.register("mi-confirm-gui", function(e)
+    local pdata =  global._pdata and global._pdata[e.player_index]
+    if pdata and pdata.gui_open and not pdata.pinned then
+        e.pdata = pdata
+        e.player = game.get_player(e.player_index)
+        mi_gui.handlers.main.apply_changes(e)
+    end
+end)
+
 local function drop_module(entity, name, count, module_inventory, chest, create_entity)
     if not (chest and chest.valid) then
         chest = create_entity{

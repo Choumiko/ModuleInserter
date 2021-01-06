@@ -2,7 +2,8 @@
 Version: 5.2.3
 Date: ????
   Changes:
-    - Don't show Space Exploration's grounded versions of buildings
+    - Pressing E while the gui is open and not pinned will apply the changes, to be in line with vanilla behaviour
+    - Don't show Space Exploration's grounded versions of buildings in the gui
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.2
 Date: 2020-12-05

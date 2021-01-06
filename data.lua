@@ -29,6 +29,12 @@ data:extend({
         consuming = 'none',
     },
     {
+        type = "custom-input",
+        name = "mi-confirm-gui",
+        key_sequence = "",
+        linked_game_control = "confirm-gui",
+    },
+    {
         type = 'shortcut',
         name = 'module-inserter',
         --order = "a[yarm]",
