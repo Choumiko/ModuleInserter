@@ -81,16 +81,7 @@ data:extend{
 }
 
 styles.mi_naked_scroll_pane = {
-  type = "scroll_pane_style",
-  extra_padding_when_activated = 0,
-  padding = 0,
-  vertically_stretchable = "on",
-  graphical_set = {
-    shadow = default_inner_shadow--luacheck: ignore
-  },
-  vertical_flow_style = {
-    type = "vertical_flow_style",
-    padding = 12,
-    top_padding = 8
-  }
+    type = "scroll_pane_style",
+    extra_padding_when_activated = 0,
+    padding = 4,
 }

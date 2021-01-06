@@ -140,7 +140,13 @@ mi_gui.templates = {
         local modules = config.to or {}
         local row = {type = "flow", direction = "horizontal", name = index, style_mods = {horizontal_spacing = 0}, children = {
                         mi_gui.templates.assembler_button(assembler),
-                        {type = "flow", style_mods={margin=0, padding = 0, horizontal_spacing = 2}, direction = "horizontal", name = "modules", children = {}}
+                        {type = "table", column_count = 10, name = "modules",  children = {},
+                            style_mods = {
+                                margin=0, padding = 0,
+                                horizontal_spacing = 0,
+                                vertical_spacing = 0
+                            }
+                        }
                     }}
         for m = 1, slots do
             row.children[2].children[m] = mi_gui.templates.module_button(m, modules[m], assembler)
@@ -247,11 +253,10 @@ function mi_gui.create(player_index)
         end
     end
     local refs = gui.build(player.gui.screen,{
-        {type = "frame", style = "outer_frame", style_mods = {maximal_height = 650},
+        {type = "frame", style_mods = {maximal_height = 650}, direction = "vertical",
             actions = {on_closed = {gui = "main", action = "close_window"}},
             ref = {"main", "window"},
             children = {
-            {type = "frame", style = "inner_frame_in_outer_frame", direction = "vertical", children = {
                 {type = "flow", ref = {"main", "titlebar_flow"},
                     children = {
                         {type = "label", style = "frame_title", caption = "Module Inserter", elem_mods = {ignored_by_interaction = true}},
@@ -270,8 +275,8 @@ function mi_gui.create(player_index)
                         }
                     }
                 },
-                {type = "flow", direction = "horizontal", style_mods = {horizontal_spacing = 12}, children = {
-                    {type = "frame", style = "inside_shallow_frame", style_mods = {minimal_width = 250}, direction = "vertical", children = {
+                {type = "flow", direction = "horizontal", style = "inset_frame_container_horizontal_flow", children = {
+                    {type = "frame", style = "inside_shallow_frame", direction = "vertical", children = {
                         {type = "frame", style = "subheader_frame", children={
                             {type = "label", style = "subheader_caption_label", caption = {"module-inserter-config-frame-title"}},
                             mi_gui.templates.pushers.horizontal,
@@ -283,11 +288,12 @@ function mi_gui.create(player_index)
                                 actions = {on_click = {gui = "main", action = "clear_all"}},
                             },
                         }},
-                        {type = "flow", direction="vertical", style_mods = {padding= 12, top_padding = 8, vertical_spacing = 12}, children = {
-                            {type = "frame", style = "deep_frame_in_shallow_frame", style_mods = {minimal_width = 250, minimal_height = 460}, children = {
+                        {type = "flow", direction="vertical", style_mods = {padding= 12, top_padding = 8, vertical_spacing = 10}, children = {
+                            {type = "frame", style = "deep_frame_in_shallow_frame",
+                                style_mods = {horizontally_stretchable = true, minimal_height = 444}, children = {
                                 {type = "scroll-pane", style="mi_naked_scroll_pane", name = "config_rows",
+                                    style_mods = {minimal_width = 214},
                                     ref = {"main", "config_rows"},
-                                    style_mods = {horizontally_stretchable = "on"},
                                     children = mi_gui.templates.config_rows(max_config_size, config_tmp)
                                 }
                             }}
@@ -304,7 +310,7 @@ function mi_gui.create(player_index)
                                 actions = {on_click = {gui = "presets", action = "export"}},
                             },
                         }},
-                        {type = "flow", direction="vertical", style_mods = {padding= 12, top_padding = 8, vertical_spacing = 12}, children = {
+                        {type = "flow", direction="vertical", style_mods = {padding= 12, top_padding = 8, vertical_spacing = 10}, children = {
                             {type = "flow", direction = "horizontal", children ={
                                 {type = "textfield", text = pdata.last_preset, style_mods = {width = 150},
                                     ref = {"presets", "textfield"},
@@ -316,7 +322,8 @@ function mi_gui.create(player_index)
                                 },
                             }},
                             {type = "frame", style = "deep_frame_in_shallow_frame", style_mods = {minimal_width = 250}, children = {
-                                {type = "scroll-pane",style="mi_naked_scroll_pane", style_mods = {horizontally_stretchable = true},
+                                {type = "scroll-pane",style="mi_naked_scroll_pane",
+                                    style_mods = {horizontally_stretchable = true, vertically_stretchable = true},
                                     ref = {"presets", "scroll_pane"},
                                     children = mi_gui.templates.preset_rows(pdata.storage, pdata.last_preset)
                                 }
@@ -325,7 +332,6 @@ function mi_gui.create(player_index)
                     }}
                 }}
             }},
-        }}
     })
     refs.main.titlebar_flow.drag_target = refs.main.window
     refs.main.window.force_auto_center()
@@ -401,17 +407,19 @@ function mi_gui.update_modules(config, slots, modules)
             gui.build(config.modules, {mi_gui.templates.module_button(i, nil, assembler)})
         end
         for i = 1, slots do
-            config.modules.children[i].visible = true
-            config.modules.children[i].locked = false
-            config.modules.children[i].elem_value = modules[i]
-            config.modules.children[i].tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or {"module-inserter-choose-module"}
+            local child = config.modules.children[i]
+            child.visible = true
+            child.locked = false
+            child.elem_value = modules[i]
+            child.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or {"module-inserter-choose-module"}
         end
     else
         for i = 1, module_btns do
-            config.modules.children[i].elem_value = modules[i]
-            config.modules.children[i].tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or {"module-inserter-choose-module"}
-            config.modules.children[i].locked = not assembler and true or false
-            config.modules.children[i].visible = i <= slots
+            local child = config.modules.children[i]
+            child.elem_value = modules[i]
+            child.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or {"module-inserter-choose-module"}
+            child.locked = not assembler and true or false
+            child.visible = i <= slots
         end
     end
 end
