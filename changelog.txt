@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.4
-Date: ????
+Date: 2021-01-06
   Changes:
     - The gui will stretch when using mods that add a lot of module slots to entities. Up to 10 slots are displayed per row.
 ---------------------------------------------------------------------------------------------------
