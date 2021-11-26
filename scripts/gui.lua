@@ -252,7 +252,7 @@ function mi_gui.create(player_index)
         end
     end
     local refs = gui.build(player.gui.screen,{
-        {name="mi_main_frame", type = "frame", style_mods = {maximal_height = 650}, direction = "vertical",
+        {name="ModuleInserter_main_frame", type = "frame", style_mods = {maximal_height = 650}, direction = "vertical",
             actions = {on_closed = {gui = "main", action = "close_window"}},
             ref = {"main", "window"},
             children = {
