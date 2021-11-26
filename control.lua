@@ -45,10 +45,12 @@ local function sort_modules(entity, modules, cTable)
 end
 
 local function on_mod_item_opened(e)
-    e.player = game.get_player(e.player_index)
-    e.pdata = global._pdata[e.player_index]
-    if not e.pdata.gui_open then
-        mi_gui.open(e)
+    if e.item.name == "module-inserter" then
+        e.player = game.get_player(e.player_index)
+        e.pdata = global._pdata[e.player_index]
+        if not e.pdata.gui_open then
+           mi_gui.open(e)
+        end
     end
 end
 event.on_mod_item_opened(on_mod_item_opened)
