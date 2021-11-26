@@ -1,7 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.5
-Date: ????
-  Changes:
+Date: 2021-11-26
+  Bugfixes:
+    - Only open module inserter GUI when clicking on Module Inserter item (fix incompatibility with other tool mods).
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.4
 Date: 2021-01-06
