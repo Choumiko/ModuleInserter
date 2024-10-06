@@ -647,10 +647,18 @@ mi_gui.handlers = {
             local index = tonumber(e.element.parent.parent.name)
             local slot = tonumber(e.element.name)
 
-
             local config = config_tmp[index]
             config.to[slot] = e.element.elem_value
             local entity_proto = config.from and game.entity_prototypes[config.from]
+            if not entity_proto then
+                for i in pairs(e.element.parent.children) do
+                    e.element.parent.children[i].locked = true
+                end
+                e.element.elem_value = nil
+                config.to[slot] = nil
+                e.player.print({"", {"module-inserter-choose-assembler"}, " first"})
+                return
+            end
             if e.element.elem_value then
                 local proto = game.item_prototypes[e.element.elem_value]
                 local success = true
