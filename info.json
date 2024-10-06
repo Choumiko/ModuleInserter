@@ -10,7 +10,6 @@
   "dependencies": ["flib >= 0.6.0"],
   "package":{
     "scripts": {
-        "prepackage": "luacheck . --config '../.luacheckrc'"
     },
     "ignore":[ "*.zip", "*.xcf" ]
   }
