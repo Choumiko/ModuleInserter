@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.5
-Date: ????
+Date: 2024-10-06
   Bugfixes:
     - Fixed crash when selecting a module before an assembler in the gui
     - Fixed opening the gui when opening any mod item (RailSignalPlanner, Artillery Bombaredemnt Remote, etc.)
