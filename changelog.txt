@@ -4,6 +4,7 @@ Date: ????
   Bugfixes:
     - Fixed crash when selecting a module before an assembler in the gui
     - Fixed opening the gui when opening any mod item (RailSignalPlanner, Artillery Bombaredemnt Remote, etc.)
+    - Fixed being able to configure modules for the same machine twice
 ---------------------------------------------------------------------------------------------------
 Version: 5.2.4
 Date: 2021-01-06

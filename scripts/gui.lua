@@ -620,7 +620,15 @@ mi_gui.handlers = {
             if elem_value == config_tmp[index].from then
                 return
             end
-
+            if elem_value then
+                for k, v in pairs(config_tmp) do
+                    if v.from and k ~= index and v.from == elem_value then
+                        e.element.elem_value = nil
+                        e.player.print({"", game.entity_prototypes[elem_value].localised_name, " is already configured in row ", k})
+                        return
+                    end
+                end
+            end
             local c = table_size(config_tmp)
 
             if not elem_value then
